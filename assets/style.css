@@ -280,8 +280,9 @@ table.rels td{white-space:normal;vertical-align:top}
 .fx-foot{margin-top:12px;font-size:12.5px;color:var(--muted);line-height:1.7}
 .fx-foot .faint{color:var(--faint)} .fx-foot a{color:var(--muted);text-decoration:underline}
 .live{margin-inline-start:auto;font-size:12px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
-.live.on{color:#15803d}
-.live.on::before{content:"";width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.18);animation:pulse 2s infinite}
+.live::before{content:"";width:9px;height:9px;border-radius:50%}
+.live.on::before{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.18);animation:pulse 2s infinite}
+.live.off::before{background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.16)}
 @keyframes pulse{50%{box-shadow:0 0 0 7px rgba(34,197,94,0)}}
 .skel{display:inline-block;width:64px;height:14px;border-radius:6px;background:linear-gradient(90deg,#eef2f7,#f8fafc,#eef2f7);background-size:200% 100%;animation:sk 1.2s infinite}
 @keyframes sk{to{background-position:-200% 0}}

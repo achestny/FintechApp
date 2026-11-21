@@ -102,7 +102,7 @@
       : st === 'loading' ? 'טוען שערים...'
       : `שער יציג ליום ${asOf}${st === 'cached' ? ' (שער אחרון שנשמר)' : ''}`;
     return `<div class="card fx-card"><div class="card-head"><h2>שערי חליפין יציגים</h2>
-        <span class="live ${st === 'live' ? 'on' : ''}">${st === 'live' ? 'חי' : st === 'cached' ? 'שמור' : ''}</span></div>
+        ${st === 'loading' ? '' : `<span class="live ${st === 'live' ? 'on' : 'off'}" role="img" title="${st === 'live' ? 'מחובר – שערים עדכניים' : 'אין חיבור לשירות השערים'}" aria-label="${st === 'live' ? 'מחובר' : 'אין חיבור'}"></span>`}</div>
       <div class="fx-list">${rows}</div>
       ${exp ? `<div class="fx-exp"><span class="muted">יתרות במט"ח:</span> ${exp}</div>` : ''}
       <div class="fx-foot">${esc(msg)}<br><span class="faint">מקור: <a href="https://frankfurter.dev/providers/boi/" target="_blank" rel="noopener">${esc(FXN.source || 'בנק ישראל')}</a></span></div></div>`;
