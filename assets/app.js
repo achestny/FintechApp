@@ -56,10 +56,6 @@
     const v = c.fn(r, db);
     return c.type === 'money' ? `<span class="num ${v < 0 ? 'neg' : ''}" style="font-weight:600">${money(v)}</span>` : esc(v);
   }
-  const keyIcons = (e, f) =>
-    (e.pk.includes(f.key) ? '<span class="key-ic pk" title="מפתח ראשי">PK</span>' : '') +
-    (f.type === 'ref' ? '<span class="key-ic fk" title="מפתח זר">FK</span>' : '');
-
   function reverseRefs(key) {
     const out = [];
     S.entities.forEach(e => e.fields.forEach(f => { if (f.type === 'ref' && f.ref === key) out.push({ e, f }); }));
@@ -206,7 +202,7 @@
       const comp = e.computed || [];
       $('#tbl').innerHTML = rows.length ? `
         <table class="data"><thead><tr>
-          ${e.fields.map(f => `<th>${esc(f.label)}${keyIcons(e, f)}</th>`).join('')}
+          ${e.fields.map(f => `<th>${esc(f.label)}</th>`).join('')}
           ${comp.map(c => `<th title="תכונה מחושבת מהתנועות">${esc(c.label)} · מחושב</th>`).join('')}
           <th></th></tr></thead><tbody>
           ${rows.map(r => `<tr data-go="${href(key, r)}">
@@ -263,7 +259,7 @@
       </div>
       <div class="card"><div class="card-head"><h2>תכונות</h2><span class="sub">Attributes</span></div>
         <div class="attr-grid">
-          ${e.fields.map(f => `<div class="attr"><div class="k">${esc(f.label)}${keyIcons(e, f)}</div><div class="v">${fmt(f, r) || '<span class="muted">—</span>'}</div></div>`).join('')}
+          ${e.fields.map(f => `<div class="attr"><div class="k">${esc(f.label)}</div><div class="v">${fmt(f, r) || '<span class="muted">—</span>'}</div></div>`).join('')}
           ${(e.computed || []).map(c => `<div class="attr"><div class="k">${esc(c.label)} · מחושב</div><div class="v">${fmtComputed(c, r)}</div></div>`).join('')}
         </div></div>
       ${relSections}`;
@@ -313,7 +309,7 @@
         (lock || f.auto) ? 'readonly' : ''].join(' ');
       ctl = `<input id="${id}" name="${f.key}" type="${t}" value="${esc(v)}" ${req} ${extra} ${t === 'tel' || t === 'email' ? 'dir="ltr" style="text-align:right"' : ''}>`;
     }
-    return `<div class="field"><label for="${id}">${esc(f.label)} ${f.required ? '<span class="req">*</span>' : ''}${keyIcons(e, f)}</label>
+    return `<div class="field"><label for="${id}">${esc(f.label)} ${f.required ? '<span class="req">*</span>' : ''}</label>
       ${ctl}${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}<span class="err" data-err="${f.key}"></span></div>`;
   }
   function openForm(key, rec) {
