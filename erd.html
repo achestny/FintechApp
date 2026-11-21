@@ -3,68 +3,63 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>תרשים ישויות-קשרים (ERD) – ניהול לקוחות בנק</title>
+  <title>תרשים ישויות-קשרים (ERD) – ניהול לקוחות</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2316325c'/%3E%3Cpath d='M4 10l8-5 8 5M6 10v7M10 10v7M14 10v7M18 10v7M4 19h16' stroke='white' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%232563eb'/%3E%3Cpath d='M4 10l8-5 8 5M6 10v7M10 10v7M14 10v7M18 10v7M4 19h16' stroke='white' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
 </head>
 <body>
-  <header class="topbar">
-    <a class="logo" href="index.html">
-      <span class="logo-mark">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></svg>
-      </span>
-      ניהול לקוחות בנק
-    </a>
-    <span class="spacer"></span>
-    <a class="toplink" href="index.html">→ חזרה לאפליקציה</a>
-  </header>
-
-  <main style="max-width:1280px;margin:0 auto;padding:22px">
-    <div class="page-head"><div>
-      <h1>תרשים ישויות-קשרים (ERD)</h1>
-      <p>המודל המושגי של המערכת בסימון Chen: ישויות, תכונות וקשרים, ועוצמת כל קשר (<span class="ltr">1:N</span>, <span class="ltr">N:M</span>). לחצו על ישות או על קשר כדי להדגיש אותם ואת מה שמחובר אליהם.</p>
-    </div></div>
-
-    <div class="card">
-      <h2>מקרא</h2>
-      <div class="erd-legend">
-        <span class="item"><svg width="54" height="26"><rect x="2" y="2" width="50" height="22" rx="3" fill="#fff" stroke="#2563eb" stroke-width="2"/></svg>ישות (Entity)</span>
-        <span class="item"><svg width="54" height="30"><polygon points="27,2 52,15 27,28 2,15" fill="#fff" stroke="#16325c" stroke-width="2"/></svg>קשר (Relationship)</span>
-        <span class="item"><svg width="54" height="26"><ellipse cx="27" cy="13" rx="25" ry="11" fill="#fff" stroke="#64748b" stroke-width="1.4"/></svg>תכונה (Attribute)</span>
-        <span class="item"><svg width="54" height="26"><ellipse cx="27" cy="13" rx="25" ry="11" fill="#fff" stroke="#64748b" stroke-width="1.4"/><text x="27" y="17" text-anchor="middle" font-size="11" font-weight="700" text-decoration="underline">מזהה</text></svg>מפתח ראשי (קו תחתי)</span>
-        <span class="item"><svg width="54" height="26"><ellipse cx="27" cy="13" rx="25" ry="11" fill="#fff" stroke="#64748b" stroke-width="1.4" stroke-dasharray="5 4"/></svg>תכונה נגזרת (מחושבת)</span>
-        <span class="item"><b style="color:#16325c">1 / N / M</b>&nbsp;עוצמת הקשר</span>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="scrim"></div>
+  <div class="main">
+    <header class="header">
+      <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="תפריט"></button>
+      <nav class="crumbs" id="crumbs"></nav>
+      <span class="spacer"></span>
+      <span class="today" id="today"></span>
+    </header>
+    <main class="content">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow" style="--c:#6366f1"><span class="tile" id="erdTile"></span>מודל הנתונים</div>
+          <h1>תרשים ישויות-קשרים (ERD)</h1>
+          <p>המודל המושגי של המערכת בסימון Chen: ישויות, תכונות וקשרים, ועוצמת כל קשר (<span class="ltr">1:N</span>, <span class="ltr">N:M</span>). לחצו על ישות או על קשר כדי להדגיש את החיבורים שלו.</p>
+        </div>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="erd-toolbar">
-        <button class="btn sm" id="zoomIn" type="button">הגדלה +</button>
-        <button class="btn sm" id="zoomOut" type="button">הקטנה −</button>
-        <button class="btn sm" id="zoomFit" type="button">התאמה למסך</button>
-        <button class="btn sm" id="toggleAttrs" type="button">הסתרת תכונות</button>
-        <button class="btn sm" id="clearSel" type="button">ניקוי בחירה</button>
-        <span class="sel-info" id="selInfo">לא נבחר רכיב</span>
+      <div class="card">
+        <div class="erd-toolbar">
+          <div class="erd-legend" id="legend"></div>
+          <span class="spacer"></span>
+          <button class="btn sm" id="toggleAttrs" type="button"></button>
+          <button class="icon-btn" id="zoomOut" type="button" title="הקטנה" aria-label="הקטנה"></button>
+          <button class="icon-btn" id="zoomFit" type="button" title="התאמה למסך" aria-label="התאמה למסך"></button>
+          <button class="icon-btn" id="zoomIn" type="button" title="הגדלה" aria-label="הגדלה"></button>
+        </div>
+        <div class="erd-canvas" id="canvas"></div>
+        <div class="sel-bar"><span class="dot"></span><span id="selInfo">לחצו על ישות או על קשר כדי להדגיש את החיבורים שלו</span>
+          <button class="btn sm ghost" id="clearSel" type="button" hidden>ניקוי בחירה</button></div>
       </div>
-      <div class="erd-canvas" id="canvas"></div>
-    </div>
 
-    <div class="card">
-      <h2>הקשרים במערכת</h2>
-      <div class="table-wrap"><table class="data rels" id="relTable"></table></div>
-    </div>
+      <div class="card flush">
+        <div class="card-head" style="padding:22px 24px 0"><h2>הקשרים במערכת</h2><span class="count-pill" id="relCount"></span></div>
+        <div class="table-wrap" style="margin-top:6px"><table class="data rels" id="relTable"></table></div>
+      </div>
 
-    <div class="card">
-      <h2>מעבר מ-ERD לטבלאות (מודל יחסי)</h2>
-      <p class="muted" style="margin-top:0">כל ישות הופכת לטבלה; קשר 1:N מיושם במפתח זר בצד ה"רבים"; קשר N:M מיושם בטבלת קשר נפרדת עם מפתח ראשי משולב.</p>
-      <div class="schema-grid" id="schemaGrid"></div>
-    </div>
-  </main>
+      <div class="card">
+        <div class="card-head"><h2>מעבר מ-ERD לטבלאות (מודל יחסי)</h2></div>
+        <p class="muted" style="margin:-6px 0 18px">כל ישות הופכת לטבלה; קשר <span class="ltr">1:N</span> מיושם במפתח זר בצד ה"רבים"; קשר <span class="ltr">N:M</span> מיושם בטבלת קשר נפרדת עם מפתח ראשי משולב.</p>
+        <div class="schema-grid" id="schemaGrid"></div>
+      </div>
+    </main>
+  </div>
+</div>
 
-  <script src="assets/schema.js"></script>
-  <script src="assets/erd.js"></script>
+<script src="assets/schema.js"></script>
+<script src="assets/shell.js"></script>
+<script src="assets/erd.js"></script>
 </body>
 </html>

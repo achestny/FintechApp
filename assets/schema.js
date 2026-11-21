@@ -5,7 +5,7 @@
 window.SCHEMA = {
   entities: [
     {
-      key: 'customers', label: 'לקוחות', single: 'לקוח', en: 'Customer', color: '#2563eb',
+      key: 'customers', label: 'לקוחות', single: 'לקוח', en: 'Customer', color: '#3b82f6',
       desc: 'הלקוחות של הבנק. כל לקוח משויך לסניף אחד, יכול להחזיק בכמה חשבונות ולקחת הלוואות.',
       pk: ['customerId'],
       fields: [
@@ -19,7 +19,7 @@ window.SCHEMA = {
       title: r => r.fullName
     },
     {
-      key: 'accounts', label: 'חשבונות', single: 'חשבון', en: 'Account', color: '#0d9488',
+      key: 'accounts', label: 'חשבונות', single: 'חשבון', en: 'Account', color: '#14b8a6',
       desc: 'חשבונות הבנק. חשבון מתנהל בסניף אחד ויכול להיות משותף לכמה לקוחות. היתרה מחושבת מהתנועות.',
       pk: ['accountNo'],
       fields: [
@@ -38,7 +38,7 @@ window.SCHEMA = {
       title: r => `חשבון ${r.accountNo} (${r.type})`
     },
     {
-      key: 'ownerships', label: 'בעלות בחשבונות', single: 'בעלות', en: 'Ownership', color: '#7c3aed',
+      key: 'ownerships', label: 'בעלות בחשבונות', single: 'בעלות', en: 'Ownership', color: '#8b5cf6',
       relTable: true,
       desc: 'טבלת קשר (N:M) בין לקוחות לחשבונות: לקוח יכול להחזיק כמה חשבונות, וחשבון יכול להיות משותף לכמה לקוחות. מפתח ראשי משולב.',
       pk: ['customerId', 'accountNo'],
@@ -54,7 +54,7 @@ window.SCHEMA = {
       }
     },
     {
-      key: 'transactions', label: 'תנועות', single: 'תנועה', en: 'Transaction', color: '#d97706',
+      key: 'transactions', label: 'תנועות', single: 'תנועה', en: 'Transaction', color: '#f59e0b',
       desc: 'הפקדות ומשיכות. כל תנועה שייכת לחשבון אחד; בחשבון תנועות רבות.',
       pk: ['txnId'],
       fields: [
@@ -68,7 +68,7 @@ window.SCHEMA = {
       title: r => `תנועה ${r.txnId}`
     },
     {
-      key: 'loans', label: 'הלוואות', single: 'הלוואה', en: 'Loan', color: '#dc2626',
+      key: 'loans', label: 'הלוואות', single: 'הלוואה', en: 'Loan', color: '#f43f5e',
       desc: 'הלוואות שהבנק העניק. כל הלוואה שייכת ללקוח אחד; ללקוח יכולות להיות כמה הלוואות.',
       pk: ['loanId'],
       fields: [
@@ -83,7 +83,7 @@ window.SCHEMA = {
       title: r => `הלוואה ${r.loanId} (${r.purpose})`
     },
     {
-      key: 'branches', label: 'סניפים', single: 'סניף', en: 'Branch', color: '#0f766e',
+      key: 'branches', label: 'סניפים', single: 'סניף', en: 'Branch', color: '#6366f1',
       desc: 'סניפי הבנק. סניף מעסיק עובדים, משרת לקוחות ומנהל חשבונות.',
       pk: ['branchId'],
       fields: [
@@ -95,7 +95,7 @@ window.SCHEMA = {
       title: r => `${r.name} (${r.branchId})`
     },
     {
-      key: 'employees', label: 'עובדים', single: 'עובד', en: 'Employee', color: '#475569',
+      key: 'employees', label: 'עובדים', single: 'עובד', en: 'Employee', color: '#64748b',
       desc: 'עובדי הבנק. כל עובד מועסק בסניף, ולכל עובד (מלבד המנהל הבכיר) יש מנהל שהוא עובד בעצמו – קשר רקורסיבי.',
       pk: ['empId'],
       fields: [

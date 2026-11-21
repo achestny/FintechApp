@@ -1,4 +1,4 @@
-/* ניהול לקוחות בנק – אפליקציית CRUD פשוטה, צד-לקוח בלבד */
+/* ניהול לקוחות בנק – אפליקציית CRUD צד-לקוח */
 (function () {
   'use strict';
 
@@ -8,10 +8,7 @@
 
   /* ---------- Storage ---------- */
   function load() {
-    try {
-      const raw = localStorage.getItem(STORE);
-      if (raw) { db = JSON.parse(raw); }
-    } catch (e) { db = null; }
+    try { const raw = localStorage.getItem(STORE); if (raw) db = JSON.parse(raw); } catch (e) { db = null; }
     if (!db || !S.entities.every(e => Array.isArray(db[e.key]))) db = JSON.parse(JSON.stringify(window.SEED));
   }
   function save() { try { localStorage.setItem(STORE, JSON.stringify(db)); } catch (e) { /* ignore */ } }
@@ -27,33 +24,37 @@
   const findBy = (key, id) => { const e = ent(key); return db[key].find(r => pkOf(e, r) === String(id)); };
   const titleOf = (key, r) => r ? ent(key).title(r, db) : '—';
   const href = (key, r) => `#/e/${key}/${encodeURIComponent(pkOf(ent(key), r))}`;
+  const initials = s => String(s || '').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('');
+  const PEOPLE = ['customers', 'employees'];
   const TAGS = { 'פעיל': 'ok', 'סגור': 'bad', 'מוקפא': 'mid', 'הפקדה': 'ok', 'משיכה': 'bad' };
-  const ICON = {
-    search: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
-    edit: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
-    del: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
-    plus: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>'
-  };
+  const balanceOf = a => ent('accounts').computed[0].fn(a, db);
+  const tile = (e, size) => `<span class="tile" style="--c:${e.color}">${ICON(e.key, size || 20)}</span>`;
 
   function fmt(f, r) {
     const v = r[f.key];
     switch (f.type) {
-      case 'money': return money(v);
-      case 'date': return fdate(v);
-      case 'percent': return v === '' || v == null ? '' : `${esc(v)}%`;
+      case 'money': return `<span class="num">${money(v)}</span>`;
+      case 'date': return `<span class="num">${fdate(v)}</span>`;
+      case 'percent': return v === '' || v == null ? '' : `<span class="num">${esc(v)}%</span>`;
       case 'select': return `<span class="tag ${TAGS[v] || ''}">${esc(v)}</span>`;
       case 'ref': {
         if (v === '' || v == null) return '<span class="muted">—</span>';
         const t = findBy(f.ref, v);
-        return t ? `<a class="chip" style="--c:${ent(f.ref).color}" href="${href(f.ref, t)}" onclick="event.stopPropagation()">${esc(titleOf(f.ref, t))}</a>` : `<span class="muted">${esc(v)}</span>`;
+        return t ? `<a class="chip" style="--c:${ent(f.ref).color}" href="${href(f.ref, t)}">${esc(titleOf(f.ref, t))}</a>` : `<span class="muted">${esc(v)}</span>`;
       }
-      case 'tel': return `<span class="ltr">${esc(v)}</span>`;
+      case 'tel': return `<span class="ltr num">${esc(v)}</span>`;
       default: return esc(v);
     }
   }
+  function cell(e, f, r) {
+    if (f.key === 'fullName' && PEOPLE.includes(e.key))
+      return `<span class="cell-main"><span class="avatar" style="--c:${e.color}">${esc(initials(r.fullName))}</span>${esc(r.fullName)}</span>`;
+    if (e.pk[0] === f.key && e.pk.length === 1 && f.type !== 'ref') return `<span class="num" style="font-weight:600">${esc(r[f.key])}</span>`;
+    return fmt(f, r);
+  }
   function fmtComputed(c, r) {
     const v = c.fn(r, db);
-    return c.type === 'money' ? `<span class="${v < 0 ? 'neg' : ''}">${money(v)}</span>` : esc(v);
+    return c.type === 'money' ? `<span class="num ${v < 0 ? 'neg' : ''}" style="font-weight:600">${money(v)}</span>` : esc(v);
   }
   const keyIcons = (e, f) =>
     (e.pk.includes(f.key) ? '<span class="key-ic pk" title="מפתח ראשי">PK</span>' : '') +
@@ -64,73 +65,113 @@
     S.entities.forEach(e => e.fields.forEach(f => { if (f.type === 'ref' && f.ref === key) out.push({ e, f }); }));
     return out;
   }
-  function related(key, id) {
-    return reverseRefs(key)
-      .map(({ e, f }) => ({ e, f, rows: db[e.key].filter(r => String(r[f.key]) === String(id)) }));
-  }
+  const related = (key, id) => reverseRefs(key).map(({ e, f }) => ({ e, f, rows: db[e.key].filter(r => String(r[f.key]) === String(id)) }));
   function relationsFor(key) {
-    const e = ent(key);
-    if (e.relTable) return S.relations.filter(r => r.key === 'r_owns');
+    if (ent(key).relTable) return S.relations.filter(r => r.key === 'r_owns');
     return S.relations.filter(r => r.a === key || r.b === key);
   }
 
-  /* ---------- Toast ---------- */
+  /* ---------- Shell ---------- */
+  function shell(active, crumbs) {
+    const counts = {}; S.entities.forEach(e => { counts[e.key] = db[e.key].length; });
+    renderSidebar(active, '', counts);
+    $('#crumbs').innerHTML = crumbs.map((c, i) => i < crumbs.length - 1
+      ? `<a href="${c[1]}">${esc(c[0])}</a>${ICON('back', 14)}` : `<b>${esc(c[0])}</b>`).join('');
+  }
+
   let toastT;
   function toast(msg, err) {
     const t = $('#toast');
     t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '');
-    clearTimeout(toastT); toastT = setTimeout(() => { t.className = 'toast' + (err ? ' err' : ''); }, 3200);
-  }
-
-  /* ---------- Navigation ---------- */
-  function renderNav(active) {
-    const items = S.entities.map(e =>
-      `<a href="#/e/${e.key}" class="${active === e.key ? 'active' : ''}" style="--c:${e.color}">
-        <span class="dot"></span>${esc(e.label)}<span class="count">${db[e.key].length}</span></a>`).join('');
-    $('#nav').innerHTML =
-      `<a href="#/" class="${active === 'home' ? 'active' : ''}"><span class="dot" style="--c:#16325c"></span>לוח בקרה</a>
-       <hr><div class="sub">ישויות</div>${items}<hr>
-       <a href="erd.html"><span class="dot" style="--c:#7c3aed"></span>תרשים ERD</a>`;
+    clearTimeout(toastT); toastT = setTimeout(() => { t.className = 'toast' + (err ? ' err' : ''); }, 3400);
   }
 
   /* ---------- Dashboard ---------- */
   function viewHome() {
-    renderNav('home');
-    const acc = ent('accounts');
-    const totalBal = db.accounts.reduce((s, a) => s + acc.computed[0].fn(a, db), 0);
+    shell('home', [['לוח בקרה', '#/']]);
+    const balances = db.accounts.map(a => ({ a, b: balanceOf(a) }));
+    const totalBal = balances.reduce((s, x) => s + x.b, 0);
     const totalLoans = db.loans.reduce((s, l) => s + Number(l.amount || 0), 0);
+    const active = db.accounts.filter(a => a.status === 'פעיל').length;
+    const avgRate = db.loans.length ? db.loans.reduce((s, l) => s + Number(l.rate || 0) * Number(l.amount || 0), 0) / (totalLoans || 1) : 0;
+
+    // יתרות לפי סוג חשבון
+    const accTypes = ent('accounts').fields.find(f => f.key === 'type').options
+      .map(t => ({ t, v: balances.filter(x => x.a.type === t).reduce((s, x) => s + x.b, 0), n: balances.filter(x => x.a.type === t).length }));
+    // הלוואות לפי מטרה
+    const purposes = ent('loans').fields.find(f => f.key === 'purpose').options
+      .map(t => ({ t, v: db.loans.filter(l => l.purpose === t).reduce((s, l) => s + Number(l.amount || 0), 0), n: db.loans.filter(l => l.purpose === t).length }));
+    const bars = (rows, color, unit) => {
+      const max = Math.max(1, ...rows.map(r => Math.abs(r.v)));
+      return `<div class="bars">${rows.map(r => `<div class="bar-row" title="${esc(r.t)}: ${money(r.v)} · ${r.n} ${unit}">
+        <span class="name">${esc(r.t)}</span>
+        <span class="bar-track"><span class="bar-fill" style="--c:${color};width:${Math.max(0, r.v) / max * 100}%"></span></span>
+        <span class="v">${money(r.v)}</span></div>`).join('')}</div>`;
+    };
+
+    // לקוחות מובילים לפי יתרה בחשבונות שבבעלותם
+    const top = db.customers.map(c => {
+      const own = db.ownerships.filter(o => String(o.customerId) === String(c.customerId));
+      const sum = own.reduce((s, o) => { const a = findBy('accounts', o.accountNo); return s + (a ? balanceOf(a) : 0); }, 0);
+      return { c, n: own.length, sum };
+    }).sort((x, y) => y.sum - x.sum).slice(0, 5);
+
     const recent = db.transactions.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.txnId - a.txnId).slice(0, 6);
     const tx = ent('transactions');
-    const topCust = db.customers.map(c => ({
-      c, n: db.ownerships.filter(o => String(o.customerId) === String(c.customerId)).length,
-      l: db.loans.filter(l => String(l.customerId) === String(c.customerId)).length
-    }));
+    const C = ent('customers'), A = ent('accounts'), Lo = ent('loans');
 
     $('#view').innerHTML = `
-      <div class="page-head"><div><h1>לוח בקרה</h1>
-        <p>תמונת מצב של הבנק. לחצו על כל ישות כדי לצפות ברשומות, להוסיף, לערוך ולמחוק.</p></div></div>
-      <div class="stats">
-        ${S.entities.map(e => `<a class="stat" href="#/e/${e.key}" style="--c:${e.color}">
-          <div class="num">${db[e.key].length}</div><div class="lbl">${esc(e.label)}</div></a>`).join('')}
+      <div class="page-head"><div>
+        <h1>לוח בקרה</h1>
+        <p>תמונת מצב של הלקוחות, החשבונות וההלוואות בבנק.</p></div>
+        <div class="actions"><a class="btn" href="erd.html">${ICON('erd', 17)} מודל הנתונים</a>
+          <button class="btn primary" type="button" id="qAdd">${ICON('plus', 17)} לקוח חדש</button></div>
       </div>
-      <div class="stats">
-        <div class="stat" style="--c:#15803d"><div class="num">${money(totalBal)}</div><div class="lbl">סך יתרות בחשבונות</div></div>
-        <div class="stat" style="--c:#dc2626"><div class="num">${money(totalLoans)}</div><div class="lbl">סך הלוואות שניתנו</div></div>
+
+      <div class="kpis">
+        <div class="kpi hero"><div class="top"><span class="lbl">סך יתרות בחשבונות</span><span class="tile">${ICON('accounts', 20)}</span></div>
+          <div class="val">${money(totalBal)}</div><div class="foot">ב-${db.accounts.length} חשבונות</div></div>
+        <a class="kpi" href="#/e/loans"><div class="top"><span class="lbl">תיק ההלוואות</span>${tile(Lo)}</div>
+          <div class="val">${money(totalLoans)}</div><div class="foot">${db.loans.length} הלוואות · ריבית משוקללת ${avgRate.toFixed(1)}%</div></a>
+        <a class="kpi" href="#/e/customers"><div class="top"><span class="lbl">לקוחות</span>${tile(C)}</div>
+          <div class="val">${db.customers.length}</div><div class="foot">ב-${db.branches.length} סניפים</div></a>
+        <a class="kpi" href="#/e/accounts"><div class="top"><span class="lbl">חשבונות פעילים</span>${tile(A)}</div>
+          <div class="val">${active}<span class="muted" style="font-size:18px;font-weight:500"> / ${db.accounts.length}</span></div>
+          <div class="foot">${db.ownerships.length} קשרי בעלות</div></a>
       </div>
-      <div class="grid-2">
-        <div class="card"><h2>תנועות אחרונות</h2>
-          <div class="table-wrap"><table class="data"><thead><tr><th>תאריך</th><th>חשבון</th><th>סוג</th><th>סכום</th></tr></thead><tbody>
-          ${recent.map(t => `<tr data-go="${href('transactions', t)}"><td>${fdate(t.date)}</td><td>${fmt(tx.fields[1], t)}</td>
-            <td>${fmt(tx.fields[3], t)}</td><td class="${t.type === 'הפקדה' ? 'pos' : 'neg'}">${money(t.amount)}</td></tr>`).join('')}
+
+      <div class="grid c2">
+        <div class="card"><div class="card-head"><h2>יתרות לפי סוג חשבון</h2><a class="more" href="#/e/accounts">לכל החשבונות</a></div>
+          ${bars(accTypes, '#14b8a6', 'חשבונות')}</div>
+        <div class="card"><div class="card-head"><h2>הלוואות לפי מטרה</h2><a class="more" href="#/e/loans">לכל ההלוואות</a></div>
+          ${bars(purposes, '#f43f5e', 'הלוואות')}</div>
+      </div>
+
+      <div class="grid c32">
+        <div class="card flush"><div class="card-head" style="padding:22px 24px 4px"><h2>תנועות אחרונות</h2><a class="more" href="#/e/transactions">לכל התנועות</a></div>
+          <div class="table-wrap"><table class="data"><thead><tr><th>תאריך</th><th>חשבון</th><th>תיאור</th><th>סוג</th><th>סכום</th></tr></thead><tbody>
+          ${recent.map(t => `<tr data-go="${href('transactions', t)}"><td>${fmt(tx.fields[2], t)}</td><td>${fmt(tx.fields[1], t)}</td>
+            <td class="muted">${esc(t.description)}</td><td>${fmt(tx.fields[3], t)}</td>
+            <td class="num ${t.type === 'הפקדה' ? 'pos' : 'neg'}" style="font-weight:600">${t.type === 'הפקדה' ? '+' : '−'}${money(t.amount)}</td></tr>`).join('')}
           </tbody></table></div></div>
-        <div class="card"><h2>לקוחות – חשבונות והלוואות</h2>
-          <div class="table-wrap"><table class="data"><thead><tr><th>לקוח</th><th>חשבונות</th><th>הלוואות</th></tr></thead><tbody>
-          ${topCust.map(x => `<tr data-go="${href('customers', x.c)}"><td>${esc(x.c.fullName)}</td><td>${x.n}</td><td>${x.l}</td></tr>`).join('')}
-          </tbody></table></div></div>
+        <div class="card"><div class="card-head"><h2>לקוחות מובילים</h2><span class="sub">לפי יתרה בחשבונות</span></div>
+          <div class="plist">${top.map(x => `<a class="prow" href="${href('customers', x.c)}">
+            <span class="avatar" style="--c:${C.color}">${esc(initials(x.c.fullName))}</span>
+            <span><div class="pname">${esc(x.c.fullName)}</div><div class="psub">${x.n} חשבונות</div></span>
+            <span class="amt">${money(x.sum)}</span></a>`).join('')}</div></div>
       </div>
-      <div class="card"><h2>איך הישויות קשורות זו לזו?</h2>
-        <p class="muted" style="margin:0 0 10px">המערכת בנויה על ${S.entities.length - 1} ישויות וטבלת קשר אחת, עם ${S.relations.length} קשרים: <span class="ltr">1:N</span>, <span class="ltr">N:M</span> וקשר רקורסיבי.</p>
-        <a class="btn primary" href="erd.html">לצפייה בתרשים ה-ERD</a></div>`;
+
+      <div class="card"><div class="card-head"><h2>ישויות במערכת</h2><a class="more" href="erd.html">לתרשים ה-ERD</a></div>
+        <div class="ent-strip">${S.entities.map(e => `<a class="ent-chip" href="#/e/${e.key}" style="--c:${e.color}">
+          ${tile(e, 18)}<b class="num">${db[e.key].length}</b><span>${esc(e.label)}</span></a>`).join('')}</div></div>
+
+      <div class="foot-note">הנתונים נשמרים בדפדפן בלבד (localStorage) · כל הנתונים פיקטיביים
+        <button class="btn sm ghost" id="resetBtn" type="button">איפוס לנתוני הדגמה</button></div>`;
+    $('#qAdd').addEventListener('click', () => openForm('customers'));
+    $('#resetBtn').addEventListener('click', () => {
+      if (!confirm('לאפס את כל הנתונים לנתוני ההדגמה?')) return;
+      db = JSON.parse(JSON.stringify(window.SEED)); save(); toast('הנתונים אופסו'); route();
+    });
   }
 
   /* ---------- List ---------- */
@@ -138,44 +179,45 @@
   function viewList(key) {
     const e = ent(key);
     if (!e) return viewHome();
-    renderNav(key);
+    shell(key, [['לוח בקרה', '#/'], [e.label, `#/e/${key}`]]);
     const rels = relationsFor(key).map(r => {
       const other = r.a === r.b ? 'עצמה' : ent(r.a === key ? r.b : r.a).single;
-      return `<span class="rel-badge"><b>${esc(r.label)}</b> · ${esc(other)} (<span class="ltr">${r.card}</span>)</span>`;
+      return `<span class="rel-badge"><b>${esc(r.label)}</b> · ${esc(other)} <span class="ltr">${r.card}</span></span>`;
     }).join('');
 
     $('#view').innerHTML = `
       <div class="page-head">
-        <div><h1>${esc(e.label)}</h1><p>${esc(e.desc)}</p><div class="badge-line">${rels}</div></div>
+        <div><div class="eyebrow" style="--c:${e.color}">${tile(e, 16)}${e.relTable ? 'טבלת קשר' : 'ישות'}</div>
+          <h1>${esc(e.label)} <span class="count-pill" style="vertical-align:middle">${db[key].length}</span></h1>
+          <p>${esc(e.desc)}</p><div class="rel-badges">${rels}</div></div>
         <div class="actions">
-          <label class="search">${ICON.search}<input id="q" type="search" placeholder="חיפוש..." value="${esc(searchState[key] || '')}" aria-label="חיפוש"></label>
-          <button class="btn primary" id="addBtn" type="button">${ICON.plus} ${esc(e.single)} חדש</button>
+          <label class="search">${ICON('search', 17)}<input id="q" type="search" placeholder="חיפוש ב${esc(e.label)}..." value="${esc(searchState[key] || '')}" aria-label="חיפוש"></label>
+          <button class="btn primary" id="addBtn" type="button">${ICON('plus', 17)} ${esc(e.single)} חדש</button>
         </div>
       </div>
-      <div class="card" style="padding:0"><div class="table-wrap" id="tbl"></div></div>`;
+      <div class="card flush"><div class="table-wrap" id="tbl"></div></div>`;
 
     const draw = () => {
       const q = (searchState[key] || '').trim().toLowerCase();
-      const rows = db[key].filter(r => !q ||
-        e.fields.some(f => {
-          const v = f.type === 'ref' ? (findBy(f.ref, r[f.key]) ? titleOf(f.ref, findBy(f.ref, r[f.key])) : r[f.key]) : r[f.key];
-          return String(v == null ? '' : v).toLowerCase().includes(q);
-        }));
+      const rows = db[key].filter(r => !q || e.fields.some(f => {
+        const t = f.type === 'ref' ? findBy(f.ref, r[f.key]) : null;
+        return String(t ? titleOf(f.ref, t) : (r[f.key] == null ? '' : r[f.key])).toLowerCase().includes(q);
+      }));
       const comp = e.computed || [];
       $('#tbl').innerHTML = rows.length ? `
         <table class="data"><thead><tr>
           ${e.fields.map(f => `<th>${esc(f.label)}${keyIcons(e, f)}</th>`).join('')}
-          ${comp.map(c => `<th>${esc(c.label)} <span class="muted" title="תכונה נגזרת – מחושבת מהתנועות">(מחושב)</span></th>`).join('')}
+          ${comp.map(c => `<th title="תכונה מחושבת מהתנועות">${esc(c.label)} · מחושב</th>`).join('')}
           <th></th></tr></thead><tbody>
           ${rows.map(r => `<tr data-go="${href(key, r)}">
-            ${e.fields.map(f => `<td>${fmt(f, r)}</td>`).join('')}
+            ${e.fields.map(f => `<td>${cell(e, f, r)}</td>`).join('')}
             ${comp.map(c => `<td>${fmtComputed(c, r)}</td>`).join('')}
             <td class="actions">
-              <button class="icon-btn" data-edit="${esc(pkOf(e, r))}" title="עריכה" aria-label="עריכה">${ICON.edit}</button>
-              <button class="icon-btn del" data-del="${esc(pkOf(e, r))}" title="מחיקה" aria-label="מחיקה">${ICON.del}</button>
+              <button class="icon-btn" data-edit="${esc(pkOf(e, r))}" title="עריכה" aria-label="עריכה">${ICON('edit', 16)}</button>
+              <button class="icon-btn del" data-del="${esc(pkOf(e, r))}" title="מחיקה" aria-label="מחיקה">${ICON('trash', 16)}</button>
             </td></tr>`).join('')}
           </tbody></table>`
-        : `<div class="empty">${q ? 'לא נמצאו רשומות תואמות' : 'אין עדיין רשומות'}</div>`;
+        : `<div class="empty">${q ? 'לא נמצאו רשומות תואמות לחיפוש' : 'אין עדיין רשומות'}</div>`;
     };
     draw();
     $('#q').addEventListener('input', ev => { searchState[key] = ev.target.value; draw(); });
@@ -187,54 +229,56 @@
     const e = ent(key);
     const r = e && findBy(key, id);
     if (!r) { location.hash = `#/e/${key}`; return; }
-    renderNav(key);
-    const rel = related(key, id);
+    const title = titleOf(key, r);
+    shell(key, [['לוח בקרה', '#/'], [e.label, `#/e/${key}`], [title, '']]);
 
-    const relSections = rel.map(({ e: re, f, rows }) => {
+    const relSections = related(key, id).map(({ e: re, f, rows }) => {
       const cols = re.fields.filter(x => x.key !== f.key);
-      const relDef = S.relations.find(x => (x.a === key && x.b === re.key) || (x.b === key && x.a === re.key) ||
-        (re.relTable && x.key === 'r_owns'));
-      const title = re.key === key ? 'עובדים כפופים (מנוהלים)' : re.label;
-      return `<div class="card">
-        <h2 class="rel-title"><span class="ent-pill" style="--c:${re.color}"><span class="dot"></span></span>${esc(title)}
-          <small>${relDef ? `קשר "${esc(relDef.label)}" · <span class="ltr">${relDef.card}</span>` : ''} · ${rows.length} רשומות</small></h2>
+      const relDef = S.relations.find(x => (x.a === key && x.b === re.key) || (x.b === key && x.a === re.key) || (re.relTable && x.key === 'r_owns'));
+      const name = re.key === key ? 'עובדים כפופים' : re.label;
+      return `<div class="card flush">
+        <div class="card-head" style="padding:20px 24px 6px">${tile(re, 18)}<h2>${esc(name)}</h2>
+          <span class="count-pill">${rows.length}</span>
+          ${relDef ? `<span class="sub" style="margin-inline-start:auto">קשר "${esc(relDef.label)}" · <span class="ltr">${relDef.card}</span></span>` : ''}</div>
         ${rows.length ? `<div class="table-wrap"><table class="data"><thead><tr>
           ${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}${(re.computed || []).map(c => `<th>${esc(c.label)}</th>`).join('')}
           </tr></thead><tbody>
-          ${rows.map(x => `<tr data-go="${href(re.key, x)}">${cols.map(c => `<td>${fmt(c, x)}</td>`).join('')}
+          ${rows.map(x => `<tr data-go="${href(re.key, x)}">${cols.map(c => `<td>${cell(re, c, x)}</td>`).join('')}
             ${(re.computed || []).map(c => `<td>${fmtComputed(c, x)}</td>`).join('')}</tr>`).join('')}
-          </tbody></table></div>` : '<div class="muted">אין רשומות קשורות</div>'}
+          </tbody></table></div>` : '<div class="empty" style="padding:20px">אין רשומות קשורות</div>'}
       </div>`;
     }).join('');
 
+    const hero = PEOPLE.includes(key)
+      ? `<span class="avatar" style="--c:${e.color}">${esc(initials(r.fullName))}</span>` : tile(e, 26);
     $('#view').innerHTML = `
-      <a class="back" href="#/e/${key}">→ חזרה ל${esc(e.label)}</a>
       <div class="page-head">
-        <div><span class="ent-pill" style="--c:${e.color}"><span class="dot"></span>${esc(e.single)}</span>
-          <h1>${esc(titleOf(key, r))}</h1></div>
+        <div class="detail-hero">${hero}<div>
+          <div class="eyebrow" style="--c:${e.color};margin:0">${esc(e.single)}</div>
+          <h1>${esc(title)}</h1></div></div>
         <div class="actions">
-          <button class="btn" id="edBtn" type="button">${ICON.edit} עריכה</button>
-          <button class="btn danger" id="dlBtn" type="button">${ICON.del} מחיקה</button>
+          <button class="btn" id="edBtn" type="button">${ICON('edit', 16)} עריכה</button>
+          <button class="btn danger" id="dlBtn" type="button">${ICON('trash', 16)} מחיקה</button>
         </div>
       </div>
-      <div class="card"><h2>תכונות (Attributes)</h2>
-        <div class="detail-grid">
+      <div class="card"><div class="card-head"><h2>תכונות</h2><span class="sub">Attributes</span></div>
+        <div class="attr-grid">
           ${e.fields.map(f => `<div class="attr"><div class="k">${esc(f.label)}${keyIcons(e, f)}</div><div class="v">${fmt(f, r) || '<span class="muted">—</span>'}</div></div>`).join('')}
-          ${(e.computed || []).map(c => `<div class="attr"><div class="k">${esc(c.label)} <span class="muted">(נגזרת)</span></div><div class="v">${fmtComputed(c, r)}</div></div>`).join('')}
+          ${(e.computed || []).map(c => `<div class="attr"><div class="k">${esc(c.label)} · מחושב</div><div class="v">${fmtComputed(c, r)}</div></div>`).join('')}
         </div></div>
       ${relSections}`;
     $('#edBtn').addEventListener('click', () => openForm(key, r));
     $('#dlBtn').addEventListener('click', () => { if (remove(key, id)) location.hash = `#/e/${key}`; });
   }
 
-  /* ---------- Delete (with referential integrity) ---------- */
+  /* ---------- Delete (שלמות התייחסות) ---------- */
   function remove(key, id) {
     const e = ent(key);
     const r = findBy(key, id);
     if (!r) return false;
     const blockers = related(key, id).filter(x => x.rows.length);
     if (blockers.length) {
-      toast(`לא ניתן למחוק: קיימות רשומות קשורות (${blockers.map(b => `${b.e.key === key ? 'עובדים כפופים' : b.e.label}: ${b.rows.length}`).join(', ')}). שלמות התייחסות.`, true);
+      toast(`לא ניתן למחוק – קיימות רשומות קשורות (${blockers.map(b => `${b.e.key === key ? 'עובדים כפופים' : b.e.label}: ${b.rows.length}`).join(', ')})`, true);
       return false;
     }
     if (!confirm(`למחוק את "${titleOf(key, r)}"?`)) return false;
@@ -246,14 +290,10 @@
 
   /* ---------- Form ---------- */
   let formCtx = null;
-  function nextId(key, field) {
-    const max = db[key].reduce((m, r) => Math.max(m, Number(r[field]) || 0), 0);
-    return max + 1;
-  }
+  const nextId = (key, field) => db[key].reduce((m, r) => Math.max(m, Number(r[field]) || 0), 0) + 1;
   function inputFor(e, f, rec, isEdit) {
     const v = rec ? rec[f.key] : (f.auto ? nextId(e.key, f.key) : '');
-    const isPk = e.pk.includes(f.key);
-    const lock = isEdit && isPk;
+    const lock = isEdit && e.pk.includes(f.key);
     const req = f.required ? 'required' : '';
     const id = `f_${f.key}`;
     let ctl;
@@ -280,20 +320,22 @@
     const e = ent(key);
     formCtx = { key, rec };
     $('#dlgTitle').textContent = rec ? `עריכת ${e.single}` : `${e.single} חדש`;
+    $('#dlgTile').style.setProperty('--c', e.color);
+    $('#dlgTile').innerHTML = ICON(key, 20);
     $('#dlgBody').innerHTML = e.fields.map(f => inputFor(e, f, rec, !!rec)).join('') + '<div class="form-msg" id="formMsg"></div>';
     const d = $('#dlg');
     if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
   }
   function closeForm() { const d = $('#dlg'); if (d.close) d.close(); else d.removeAttribute('open'); formCtx = null; }
 
-  function readValue(e, f, form) {
+  function readValue(f, form) {
     const el = form.elements[f.key];
-    let v = el.value.trim();
     if (el.disabled && formCtx.rec) return formCtx.rec[f.key];
+    const v = el.value.trim();
     if (v === '') return '';
     if (['number', 'money', 'percent'].includes(f.type)) return Number(v);
     if (f.type === 'ref') {
-      const tf = ent(f.ref).fields.find(x => x.key === ent(f.ref).pk[0]);
+      const te = ent(f.ref), tf = te.fields.find(x => x.key === te.pk[0]);
       return tf.type === 'number' ? Number(v) : v;
     }
     return v;
@@ -311,7 +353,7 @@
     const err = (k, m) => { ok = false; const x = form.querySelector(`[data-err="${k}"]`); if (x) x.textContent = m; };
 
     e.fields.forEach(f => {
-      const v = readValue(e, f, form);
+      const v = readValue(f, form);
       data[f.key] = v;
       if (f.required && (v === '' || v == null)) return err(f.key, 'שדה חובה');
       if (v === '') return;
@@ -323,11 +365,10 @@
     });
     if (!ok) return;
 
-    const newPk = pkOf(e, data);
-    const oldPk = rec ? pkOf(e, rec) : null;
+    const newPk = pkOf(e, data), oldPk = rec ? pkOf(e, rec) : null;
     if (newPk !== oldPk && db[key].some(r => pkOf(e, r) === newPk)) {
       $('#formMsg').textContent = e.pk.length > 1
-        ? 'צירוף זה כבר קיים (מפתח ראשי משולב חייב להיות ייחודי).'
+        ? 'צירוף זה כבר קיים – מפתח ראשי משולב חייב להיות ייחודי.'
         : `${e.fields.find(f => f.key === e.pk[0]).label} כבר קיים – מפתח ראשי חייב להיות ייחודי.`;
       return;
     }
@@ -339,18 +380,15 @@
 
   /* ---------- Router ---------- */
   function route() {
-    const h = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
-    const parts = h.split('/');
-    if (parts[0] === 'e' && parts[1] && parts[2] !== undefined && parts[2] !== '') viewDetail(parts[1], parts.slice(2).join('/'));
+    const parts = decodeURIComponent(location.hash.replace(/^#\/?/, '')).split('/');
+    if (parts[0] === 'e' && parts[1] && parts[2]) viewDetail(parts[1], parts.slice(2).join('/'));
     else if (parts[0] === 'e' && parts[1]) viewList(parts[1]);
     else viewHome();
     window.scrollTo(0, 0);
   }
 
-  /* ---------- Global events ---------- */
   document.addEventListener('click', ev => {
-    const ed = ev.target.closest('[data-edit]');
-    const dl = ev.target.closest('[data-del]');
+    const ed = ev.target.closest('[data-edit]'), dl = ev.target.closest('[data-del]');
     const key = (location.hash.match(/#\/e\/([^/]+)/) || [])[1];
     if (ed) { ev.stopPropagation(); return openForm(key, findBy(key, ed.dataset.edit)); }
     if (dl) { ev.stopPropagation(); return remove(key, dl.dataset.del); }
@@ -359,12 +397,10 @@
   });
   $('#dlgForm').addEventListener('submit', submitForm);
   $('#dlgCancel').addEventListener('click', closeForm);
-  $('#resetBtn').addEventListener('click', () => {
-    if (!confirm('לאפס את כל הנתונים לנתוני ההדגמה?')) return;
-    db = JSON.parse(JSON.stringify(window.SEED)); save(); toast('הנתונים אופסו'); route();
-  });
   window.addEventListener('hashchange', route);
 
+  $('#menuBtn').innerHTML = ICON('menu', 20);
+  $('#today').textContent = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   load();
   route();
 })();
