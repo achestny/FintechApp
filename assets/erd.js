@@ -117,11 +117,14 @@
     if (kind === 'E') {
       active.add('A:' + key);
       const rels = S.relations.filter(r => r.a === key || r.b === key);
-      rels.forEach(r => { active.add('R:' + r.key); active.add('E:' + r.a); active.add('E:' + r.b); });
+      // הישות, הקשרים הישירים שלה, הישויות המחוברות – וגם התכונות של כולן (כולל תכונות הקשר)
+      rels.forEach(r => {
+        ['R:' + r.key, 'A:' + r.key, 'E:' + r.a, 'E:' + r.b, 'A:' + r.a, 'A:' + r.b].forEach(t => active.add(t));
+      });
       info.innerHTML = `<b style="color:var(--ink)">${esc(ent(key).single)}</b> · ${rels.map(r => `${esc(r.label)} <span class="ltr">${r.card}</span>`).join(' · ')}`;
     } else {
       const r = S.relations.find(x => x.key === key);
-      active.add('A:' + key); active.add('E:' + r.a); active.add('E:' + r.b);
+      ['A:' + key, 'E:' + r.a, 'E:' + r.b, 'A:' + r.a, 'A:' + r.b].forEach(t => active.add(t));
       info.innerHTML = `<b style="color:var(--ink)">${esc(r.label)}</b> · ${esc(r.text)} (<span class="ltr">${r.card}</span>)`;
     }
     svgEl.classList.add('focus'); clearBtn.hidden = false;
