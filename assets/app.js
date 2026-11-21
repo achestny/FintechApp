@@ -3,7 +3,7 @@
   'use strict';
 
   const S = window.SCHEMA;
-  const STORE = 'bank-crm-v1';
+  const STORE = 'bank-crm-v2';
   let db;
 
   /* ---------- Storage ---------- */
@@ -18,8 +18,9 @@
   const ent = k => S.entities.find(e => e.key === k);
   const pkOf = (e, r) => e.pk.map(k => String(r[k])).join('|');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const nf = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 });
-  const money = n => nf.format(Number(n) || 0);
+  const NF = {};
+  const money = (n, cur = 'ILS') => (NF[cur] || (NF[cur] = new Intl.NumberFormat('he-IL', { style: 'currency', currency: cur, maximumFractionDigits: 0 }))).format(Number(n) || 0);
+  const FXN = window.FX || { toILS: (n, c) => (!c || c === 'ILS' ? n : null), rates: {}, status: 'error', fromILS: () => null };
   const fdate = d => { if (!d) return ''; const x = new Date(d + 'T00:00:00'); return isNaN(x) ? esc(d) : x.toLocaleDateString('he-IL'); };
   const findBy = (key, id) => { const e = ent(key); return db[key].find(r => pkOf(e, r) === String(id)); };
   const titleOf = (key, r) => r ? ent(key).title(r, db) : '—';
@@ -28,15 +29,17 @@
   const PEOPLE = ['customers', 'employees'];
   const TAGS = { 'פעיל': 'ok', 'סגור': 'bad', 'מוקפא': 'mid', 'הפקדה': 'ok', 'משיכה': 'bad' };
   const balanceOf = a => ent('accounts').computed[0].fn(a, db);
+  const curOf = a => (a && a.currency) || 'ILS';
+  const optLabel = (f, v) => (f.optionLabels && f.optionLabels[v]) || v;
   const tile = (e, size) => `<span class="tile" style="--c:${e.color}">${ICON(e.key, size || 20)}</span>`;
 
   function fmt(f, r) {
     const v = r[f.key];
     switch (f.type) {
-      case 'money': return `<span class="num">${money(v)}</span>`;
+      case 'money': return `<span class="num">${money(v, f.currency ? f.currency(r, db) : 'ILS')}</span>`;
       case 'date': return `<span class="num">${fdate(v)}</span>`;
       case 'percent': return v === '' || v == null ? '' : `<span class="num">${esc(v)}%</span>`;
-      case 'select': return `<span class="tag ${TAGS[v] || ''}">${esc(v)}</span>`;
+      case 'select': return `<span class="tag ${TAGS[v] || ''}">${esc(optLabel(f, v))}</span>`;
       case 'ref': {
         if (v === '' || v == null) return '<span class="muted">—</span>';
         const t = findBy(f.ref, v);
@@ -54,7 +57,7 @@
   }
   function fmtComputed(c, r) {
     const v = c.fn(r, db);
-    return c.type === 'money' ? `<span class="num ${v < 0 ? 'neg' : ''}" style="font-weight:600">${money(v)}</span>` : esc(v);
+    return c.type === 'money' ? `<span class="num ${v < 0 ? 'neg' : ''}" style="font-weight:600">${money(v, c.currency ? c.currency(r, db) : 'ILS')}</span>` : esc(v);
   }
   function reverseRefs(key) {
     const out = [];
@@ -82,11 +85,40 @@
     clearTimeout(toastT); toastT = setTimeout(() => { t.className = 'toast' + (err ? ' err' : ''); }, 3400);
   }
 
+  /* ---------- שערי חליפין (אינטגרציה: בנק ישראל דרך Frankfurter) ---------- */
+  const CUR_META = { USD: ['$', 'דולר ארה"ב'], EUR: ['€', 'אירו'], GBP: ['£', 'לירה שטרלינג'] };
+  function fxCard(fxBal) {
+    const st = FXN.status;
+    const rows = (FXN.CURRENCIES || ['USD', 'EUR', 'GBP']).map(c => {
+      const r = FXN.rates[c], [sym, name] = CUR_META[c];
+      return `<div class="fx-row"><span class="fx-sym">${sym}</span>
+        <span><div class="fx-name">${name}</div><div class="psub ltr">${c} / ILS</div></span>
+        <span class="fx-rate num">${r ? '₪' + r.rate.toFixed(3) : (st === 'loading' ? '<span class="skel"></span>' : '—')}</span></div>`;
+    }).join('');
+    const dates = Object.values(FXN.rates).map(r => r.date).filter(Boolean).sort();
+    const asOf = dates.length ? fdate(dates[dates.length - 1]) : '';
+    const exp = Object.keys(fxBal).map(c => `<span class="num">${money(fxBal[c], c)}</span>`).join(' · ');
+    const msg = st === 'error' ? 'לא ניתן לטעון שערים כרגע. יתרות במט"ח מוצגות במטבע המקור.'
+      : st === 'loading' ? 'טוען שערים...'
+      : `שער יציג ליום ${asOf}${st === 'cached' ? ' (שער אחרון שנשמר)' : ''}`;
+    return `<div class="card fx-card"><div class="card-head"><h2>שערי חליפין יציגים</h2>
+        <span class="live ${st === 'live' ? 'on' : ''}">${st === 'live' ? 'חי' : st === 'cached' ? 'שמור' : ''}</span></div>
+      <div class="fx-list">${rows}</div>
+      ${exp ? `<div class="fx-exp"><span class="muted">יתרות במט"ח:</span> ${exp}</div>` : ''}
+      <div class="fx-foot">${esc(msg)}<br><span class="faint">מקור: <a href="https://frankfurter.dev/providers/boi/" target="_blank" rel="noopener">${esc(FXN.source || 'בנק ישראל')}</a></span></div></div>`;
+  }
+
   /* ---------- Dashboard ---------- */
   function viewHome() {
     shell('home', [['לוח בקרה', '#/']]);
-    const balances = db.accounts.map(a => ({ a, b: balanceOf(a) }));
+    // יתרות מומרות לשקלים לפי השער היציג (חשבונות במט"ח ללא שער – לא נספרים ומסומנים)
+    const balances = db.accounts.map(a => ({ a, b: FXN.toILS(balanceOf(a), curOf(a)) }));
+    const missing = balances.filter(x => x.b == null);
+    balances.forEach(x => { if (x.b == null) x.b = 0; });
     const totalBal = balances.reduce((s, x) => s + x.b, 0);
+    const fxBal = {};
+    db.accounts.filter(a => curOf(a) !== 'ILS').forEach(a => { fxBal[curOf(a)] = (fxBal[curOf(a)] || 0) + balanceOf(a); });
+    const usd = FXN.fromILS(totalBal, 'USD');
     const totalLoans = db.loans.reduce((s, l) => s + Number(l.amount || 0), 0);
     const active = db.accounts.filter(a => a.status === 'פעיל').length;
     const avgRate = db.loans.length ? db.loans.reduce((s, l) => s + Number(l.rate || 0) * Number(l.amount || 0), 0) / (totalLoans || 1) : 0;
@@ -108,10 +140,11 @@
     // לקוחות מובילים לפי יתרה בחשבונות שבבעלותם
     const top = db.customers.map(c => {
       const own = db.ownerships.filter(o => String(o.customerId) === String(c.customerId));
-      const sum = own.reduce((s, o) => { const a = findBy('accounts', o.accountNo); return s + (a ? balanceOf(a) : 0); }, 0);
+      const sum = own.reduce((s, o) => { const a = findBy('accounts', o.accountNo); return s + (a ? (FXN.toILS(balanceOf(a), curOf(a)) || 0) : 0); }, 0);
       return { c, n: own.length, sum };
     }).sort((x, y) => y.sum - x.sum).slice(0, 5);
 
+    const accOf = t => findBy('accounts', t.accountNo);
     const recent = db.transactions.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.txnId - a.txnId).slice(0, 6);
     const tx = ent('transactions');
     const C = ent('customers'), A = ent('accounts'), Lo = ent('loans');
@@ -126,7 +159,9 @@
 
       <div class="kpis">
         <div class="kpi hero"><div class="top"><span class="lbl">סך יתרות בחשבונות</span><span class="tile">${ICON('accounts', 20)}</span></div>
-          <div class="val">${money(totalBal)}</div><div class="foot">ב-${db.accounts.length} חשבונות</div></div>
+          <div class="val">${money(totalBal)}</div>
+          <div class="foot">${missing.length ? `${missing.length} חשבונות במט"ח לא הומרו – אין שער זמין` :
+            `ב-${db.accounts.length} חשבונות${Object.keys(fxBal).length ? ' · כולל מט"ח לפי שער יציג' : ''}${usd != null ? ` · ≈ ${money(usd, 'USD')}` : ''}`}</div></div>
         <a class="kpi" href="#/e/loans"><div class="top"><span class="lbl">תיק ההלוואות</span>${tile(Lo)}</div>
           <div class="val">${money(totalLoans)}</div><div class="foot">${db.loans.length} הלוואות · ריבית משוקללת ${avgRate.toFixed(1)}%</div></a>
         <a class="kpi" href="#/e/customers"><div class="top"><span class="lbl">לקוחות</span>${tile(C)}</div>
@@ -136,7 +171,8 @@
           <div class="foot">${db.ownerships.length} קשרי בעלות</div></a>
       </div>
 
-      <div class="grid c2">
+      <div class="grid c3">
+        ${fxCard(fxBal)}
         <div class="card"><div class="card-head"><h2>יתרות לפי סוג חשבון</h2><a class="more" href="#/e/accounts">לכל החשבונות</a></div>
           ${bars(accTypes, '#14b8a6', 'חשבונות')}</div>
         <div class="card"><div class="card-head"><h2>הלוואות לפי מטרה</h2><a class="more" href="#/e/loans">לכל ההלוואות</a></div>
@@ -148,7 +184,7 @@
           <div class="table-wrap"><table class="data"><thead><tr><th>תאריך</th><th>חשבון</th><th>תיאור</th><th>סוג</th><th>סכום</th></tr></thead><tbody>
           ${recent.map(t => `<tr data-go="${href('transactions', t)}"><td>${fmt(tx.fields[2], t)}</td><td>${fmt(tx.fields[1], t)}</td>
             <td class="muted">${esc(t.description)}</td><td>${fmt(tx.fields[3], t)}</td>
-            <td class="num ${t.type === 'הפקדה' ? 'pos' : 'neg'}" style="font-weight:600">${t.type === 'הפקדה' ? '+' : '−'}${money(t.amount)}</td></tr>`).join('')}
+            <td class="num ${t.type === 'הפקדה' ? 'pos' : 'neg'}" style="font-weight:600">${t.type === 'הפקדה' ? '+' : '−'}${money(t.amount, curOf(accOf(t)))}</td></tr>`).join('')}
           </tbody></table></div></div>
         <div class="card"><div class="card-head"><h2>לקוחות מובילים</h2><span class="sub">לפי יתרה בחשבונות</span></div>
           <div class="plist">${top.map(x => `<a class="prow" href="${href('customers', x.c)}">
@@ -197,7 +233,7 @@
       const q = (searchState[key] || '').trim().toLowerCase();
       const rows = db[key].filter(r => !q || e.fields.some(f => {
         const t = f.type === 'ref' ? findBy(f.ref, r[f.key]) : null;
-        return String(t ? titleOf(f.ref, t) : (r[f.key] == null ? '' : r[f.key])).toLowerCase().includes(q);
+        return String(t ? titleOf(f.ref, t) : (r[f.key] == null ? '' : optLabel(f, r[f.key]))).toLowerCase().includes(q);
       }));
       const comp = e.computed || [];
       $('#tbl').innerHTML = rows.length ? `
@@ -295,7 +331,7 @@
     let ctl;
     if (f.type === 'select') {
       ctl = `<select id="${id}" name="${f.key}" ${req} ${lock ? 'disabled' : ''}><option value="">בחירה...</option>
-        ${f.options.map(o => `<option ${String(v) === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+        ${f.options.map(o => `<option value="${esc(o)}" ${String(v) === o ? 'selected' : ''}>${esc(optLabel(f, o))}</option>`).join('')}</select>`;
     } else if (f.type === 'ref') {
       const te = ent(f.ref);
       let opts = db[f.ref];
@@ -375,12 +411,12 @@
   }
 
   /* ---------- Router ---------- */
-  function route() {
+  function route(keepScroll) {
     const parts = decodeURIComponent(location.hash.replace(/^#\/?/, '')).split('/');
     if (parts[0] === 'e' && parts[1] && parts[2]) viewDetail(parts[1], parts.slice(2).join('/'));
     else if (parts[0] === 'e' && parts[1]) viewList(parts[1]);
     else viewHome();
-    window.scrollTo(0, 0);
+    if (keepScroll !== true) window.scrollTo(0, 0);
   }
 
   document.addEventListener('click', ev => {
@@ -398,5 +434,6 @@
   $('#menuBtn').innerHTML = ICON('menu', 20);
   $('#today').textContent = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   load();
+  if (window.FX) FX.load(() => { const h = location.hash; if (!h || h === '#/' || h === '#' || h.startsWith('#/e/accounts') || h.startsWith('#/e/transactions')) route(true); });
   route();
 })();

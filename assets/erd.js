@@ -18,7 +18,7 @@
   const W = 1460, H = 1020, EW = 140, EH = 52, DW = 66, DH = 34;
   const L = {
     customers:    { x: 1180, y: 520, attrs: { customerId: [1345, 440], fullName: [1372, 522], phone: [1345, 604], email: [1240, 405], joinDate: [1330, 690] } },
-    accounts:     { x: 580,  y: 520, attrs: { accountNo: [465, 630], type: [590, 662], openDate: [700, 630], status: [500, 412] } },
+    accounts:     { x: 580,  y: 520, attrs: { accountNo: [465, 630], type: [590, 662], openDate: [700, 630], status: [500, 412], currency: [614, 404] } },
     transactions: { x: 170,  y: 520, attrs: { txnId: [105, 418], type: [240, 418], date: [72, 622], amount: [190, 650], description: [305, 622] } },
     loans:        { x: 1180, y: 880, attrs: { loanId: [1015, 828], purpose: [1005, 918], amount: [1090, 988], rate: [1275, 988], startDate: [1352, 918], months: [1345, 828] } },
     branches:     { x: 880,  y: 200, attrs: { branchId: [762, 92], name: [880, 64], city: [998, 92], phone: [1040, 192] } },

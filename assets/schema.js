@@ -20,22 +20,24 @@ window.SCHEMA = {
     },
     {
       key: 'accounts', label: 'חשבונות', single: 'חשבון', en: 'Account', color: '#14b8a6',
-      desc: 'חשבונות הבנק. חשבון מתנהל בסניף אחד ויכול להיות משותף לכמה לקוחות. היתרה מחושבת מהתנועות.',
+      desc: 'חשבונות הבנק. חשבון מתנהל בסניף אחד, מנוהל במטבע אחד (שקל, דולר או אירו) ויכול להיות משותף לכמה לקוחות. היתרה מחושבת מהתנועות.',
       pk: ['accountNo'],
       fields: [
         { key: 'accountNo', label: 'מספר חשבון', type: 'number', required: true, auto: true },
         { key: 'type', label: 'סוג חשבון', type: 'select', required: true, options: ['עו"ש', 'חיסכון', 'פיקדון', 'עסקי'] },
+        { key: 'currency', label: 'מטבע', type: 'select', required: true, options: ['ILS', 'USD', 'EUR'],
+          optionLabels: { ILS: 'שקל (₪)', USD: 'דולר ($)', EUR: 'אירו (€)' } },
         { key: 'openDate', label: 'תאריך פתיחה', type: 'date', required: true },
         { key: 'status', label: 'סטטוס', type: 'select', required: true, options: ['פעיל', 'מוקפא', 'סגור'] },
         { key: 'branchId', label: 'סניף', type: 'ref', ref: 'branches', required: true }
       ],
       computed: [
-        { key: 'balance', label: 'יתרה', type: 'money',
+        { key: 'balance', label: 'יתרה', type: 'money', currency: r => r.currency || 'ILS',
           fn: (r, db) => db.transactions
             .filter(t => String(t.accountNo) === String(r.accountNo))
             .reduce((s, t) => s + (t.type === 'הפקדה' ? 1 : -1) * Number(t.amount || 0), 0) }
       ],
-      title: r => `חשבון ${r.accountNo} (${r.type})`
+      title: r => `חשבון ${r.accountNo} (${r.type}${r.currency && r.currency !== 'ILS' ? ' · ' + r.currency : ''})`
     },
     {
       key: 'ownerships', label: 'בעלות בחשבונות', single: 'בעלות', en: 'Ownership', color: '#8b5cf6',
@@ -62,7 +64,8 @@ window.SCHEMA = {
         { key: 'accountNo', label: 'חשבון', type: 'ref', ref: 'accounts', required: true },
         { key: 'date', label: 'תאריך', type: 'date', required: true },
         { key: 'type', label: 'סוג תנועה', type: 'select', required: true, options: ['הפקדה', 'משיכה'] },
-        { key: 'amount', label: 'סכום', type: 'money', required: true, min: 1 },
+        { key: 'amount', label: 'סכום', type: 'money', required: true, min: 1,
+          currency: (r, db) => { const a = db.accounts.find(x => String(x.accountNo) === String(r.accountNo)); return (a && a.currency) || 'ILS'; } },
         { key: 'description', label: 'תיאור', type: 'text' }
       ],
       title: r => `תנועה ${r.txnId}`
@@ -155,13 +158,13 @@ window.SEED = {
     { customerId: '067890129', fullName: 'יעקב חדד', phone: '050-6667788', email: '', joinDate: '2024-01-17', branchId: '312' }
   ],
   accounts: [
-    { accountNo: 10001, type: 'עו"ש', openDate: '2018-02-14', status: 'פעיל', branchId: '101' },
-    { accountNo: 10002, type: 'חיסכון', openDate: '2019-01-03', status: 'פעיל', branchId: '101' },
-    { accountNo: 10003, type: 'עו"ש', openDate: '2019-07-01', status: 'פעיל', branchId: '101' },
-    { accountNo: 10004, type: 'עו"ש', openDate: '2020-11-23', status: 'פעיל', branchId: '205' },
-    { accountNo: 10005, type: 'עסקי', openDate: '2021-03-08', status: 'פעיל', branchId: '312' },
-    { accountNo: 10006, type: 'פיקדון', openDate: '2022-05-30', status: 'מוקפא', branchId: '205' },
-    { accountNo: 10007, type: 'עו"ש', openDate: '2024-01-17', status: 'פעיל', branchId: '312' }
+    { accountNo: 10001, currency: 'ILS', type: 'עו"ש', openDate: '2018-02-14', status: 'פעיל', branchId: '101' },
+    { accountNo: 10002, currency: 'EUR', type: 'חיסכון', openDate: '2019-01-03', status: 'פעיל', branchId: '101' },
+    { accountNo: 10003, currency: 'ILS', type: 'עו"ש', openDate: '2019-07-01', status: 'פעיל', branchId: '101' },
+    { accountNo: 10004, currency: 'ILS', type: 'עו"ש', openDate: '2020-11-23', status: 'פעיל', branchId: '205' },
+    { accountNo: 10005, currency: 'ILS', type: 'עסקי', openDate: '2021-03-08', status: 'פעיל', branchId: '312' },
+    { accountNo: 10006, currency: 'USD', type: 'פיקדון', openDate: '2022-05-30', status: 'מוקפא', branchId: '205' },
+    { accountNo: 10007, currency: 'ILS', type: 'עו"ש', openDate: '2024-01-17', status: 'פעיל', branchId: '312' }
   ],
   ownerships: [
     { customerId: '012345674', accountNo: 10001, role: 'בעלים ראשי', since: '2018-02-14' },

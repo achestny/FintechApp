@@ -267,3 +267,23 @@ table.rels td{white-space:normal;vertical-align:top}
   .bar-row{grid-template-columns:72px 1fr auto}
   .bar-row .v{min-width:0}
 }
+
+/* ================= FX card ================= */
+.grid.c3{grid-template-columns:1fr 1fr 1fr}
+.fx-list{display:flex;flex-direction:column}
+.fx-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.fx-row:first-child{border-top:0;padding-top:0}
+.fx-sym{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:16px;color:#1d4ed8;background:#eff5ff;flex:none}
+.fx-name{font-weight:600;font-size:14.5px}
+.fx-rate{margin-inline-start:auto;font-weight:700;font-size:17px}
+.fx-exp{margin-top:12px;padding:10px 12px;background:#f8fafc;border-radius:10px;font-size:13.5px}
+.fx-foot{margin-top:12px;font-size:12.5px;color:var(--muted);line-height:1.7}
+.fx-foot .faint{color:var(--faint)} .fx-foot a{color:var(--muted);text-decoration:underline}
+.live{margin-inline-start:auto;font-size:12px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.live.on{color:#15803d}
+.live.on::before{content:"";width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.18);animation:pulse 2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 7px rgba(34,197,94,0)}}
+.skel{display:inline-block;width:64px;height:14px;border-radius:6px;background:linear-gradient(90deg,#eef2f7,#f8fafc,#eef2f7);background-size:200% 100%;animation:sk 1.2s infinite}
+@keyframes sk{to{background-position:-200% 0}}
+@media (max-width:1180px){.grid.c3{grid-template-columns:1fr 1fr}.grid.c3 .fx-card{grid-column:1/-1}}
+@media (max-width:900px){.grid.c3{grid-template-columns:1fr}}
