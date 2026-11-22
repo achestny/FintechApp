@@ -9,11 +9,11 @@ window.SCHEMA = {
       desc: 'הלקוחות של הבנק. כל לקוח משויך לסניף אחד, יכול להחזיק בכמה חשבונות ולקחת הלוואות.',
       pk: ['customerId'],
       fields: [
-        { key: 'customerId', label: 'תעודת זהות', type: 'text', required: true, pattern: '^\\d{9}$', hint: '9 ספרות' },
+        { key: 'customerId', label: 'תעודת זהות', type: 'text', required: true, pattern: '^\\d{9}$', idCheck: true, hint: '9 ספרות, כולל ספרת ביקורת' },
         { key: 'fullName', label: 'שם מלא', type: 'text', required: true },
-        { key: 'phone', label: 'טלפון', type: 'tel', required: true },
+        { key: 'phone', label: 'טלפון', type: 'tel', required: true, pattern: '^0\\d{1,2}-?\\d{7}$', hint: 'לדוגמה 050-1234567' },
         { key: 'email', label: 'דוא"ל', type: 'email' },
-        { key: 'joinDate', label: 'תאריך הצטרפות', type: 'date', required: true },
+        { key: 'joinDate', label: 'תאריך הצטרפות', type: 'date', required: true, noFuture: true },
         { key: 'branchId', label: 'סניף', type: 'ref', ref: 'branches', required: true }
       ],
       title: r => r.fullName
@@ -27,7 +27,7 @@ window.SCHEMA = {
         { key: 'type', label: 'סוג חשבון', type: 'select', required: true, options: ['עו"ש', 'חיסכון', 'פיקדון', 'עסקי'] },
         { key: 'currency', label: 'מטבע', type: 'select', required: true, options: ['ILS', 'USD', 'EUR'],
           optionLabels: { ILS: 'שקל (₪)', USD: 'דולר ($)', EUR: 'אירו (€)' } },
-        { key: 'openDate', label: 'תאריך פתיחה', type: 'date', required: true },
+        { key: 'openDate', label: 'תאריך פתיחה', type: 'date', required: true, noFuture: true },
         { key: 'status', label: 'סטטוס', type: 'select', required: true, options: ['פעיל', 'מוקפא', 'סגור'] },
         { key: 'branchId', label: 'סניף', type: 'ref', ref: 'branches', required: true }
       ],
@@ -48,7 +48,7 @@ window.SCHEMA = {
         { key: 'customerId', label: 'לקוח', type: 'ref', ref: 'customers', required: true },
         { key: 'accountNo', label: 'חשבון', type: 'ref', ref: 'accounts', required: true },
         { key: 'role', label: 'סוג בעלות', type: 'select', required: true, options: ['בעלים ראשי', 'שותף', 'מיופה כוח'] },
-        { key: 'since', label: 'תאריך צירוף', type: 'date', required: true }
+        { key: 'since', label: 'תאריך צירוף', type: 'date', required: true, noFuture: true }
       ],
       title: (r, db) => {
         const c = db && db.customers.find(x => String(x.customerId) === String(r.customerId));
@@ -62,7 +62,7 @@ window.SCHEMA = {
       fields: [
         { key: 'txnId', label: 'מזהה תנועה', type: 'number', required: true, auto: true },
         { key: 'accountNo', label: 'חשבון', type: 'ref', ref: 'accounts', required: true },
-        { key: 'date', label: 'תאריך', type: 'date', required: true },
+        { key: 'date', label: 'תאריך', type: 'date', required: true, noFuture: true },
         { key: 'type', label: 'סוג תנועה', type: 'select', required: true, options: ['הפקדה', 'משיכה'] },
         { key: 'amount', label: 'סכום', type: 'money', required: true, min: 1,
           currency: (r, db) => { const a = db.accounts.find(x => String(x.accountNo) === String(r.accountNo)); return (a && a.currency) || 'ILS'; } },
@@ -93,7 +93,7 @@ window.SCHEMA = {
         { key: 'branchId', label: 'קוד סניף', type: 'text', required: true, pattern: '^\\d{3}$', hint: '3 ספרות' },
         { key: 'name', label: 'שם סניף', type: 'text', required: true },
         { key: 'city', label: 'עיר', type: 'text', required: true },
-        { key: 'phone', label: 'טלפון', type: 'tel' }
+        { key: 'phone', label: 'טלפון', type: 'tel', pattern: '^0\\d{1,2}-?\\d{7}$', hint: 'לדוגמה 03-5551234' }
       ],
       title: r => `${r.name} (${r.branchId})`
     },
@@ -105,7 +105,7 @@ window.SCHEMA = {
         { key: 'empId', label: 'מספר עובד', type: 'number', required: true, auto: true },
         { key: 'fullName', label: 'שם מלא', type: 'text', required: true },
         { key: 'role', label: 'תפקיד', type: 'select', required: true, options: ['מנהל אזור', 'מנהל סניף', 'בנקאי', 'פקיד'] },
-        { key: 'hireDate', label: 'תאריך העסקה', type: 'date', required: true },
+        { key: 'hireDate', label: 'תאריך העסקה', type: 'date', required: true, noFuture: true },
         { key: 'branchId', label: 'סניף', type: 'ref', ref: 'branches', required: true },
         { key: 'managerId', label: 'מנהל ישיר', type: 'ref', ref: 'employees' }
       ],
@@ -115,20 +115,20 @@ window.SCHEMA = {
 
   /* קשרים בין הישויות – משמשים לעמוד ה-ERD ולתצוגת הקשרים באפליקציה */
   relations: [
-    { key: 'r_owns', label: 'מחזיק', a: 'customers', b: 'accounts', cardA: 'N', cardB: 'M', card: 'N:M', degree: 'בינארי',
+    { key: 'r_owns', label: 'מחזיק', a: 'customers', b: 'accounts', pA: '(1,M)', pB: '(1,N)', part: ['לקוח מחזיק לפחות חשבון אחד ועד M חשבונות', 'חשבון מוחזק בידי לקוח אחד לפחות ועד N לקוחות'], card: 'N:M', degree: 'בינארי',
       impl: 'טבלת קשר נפרדת "בעלות בחשבונות" עם מפתח ראשי משולב (ת.ז + מספר חשבון)', attrs: ['סוג בעלות', 'תאריך צירוף'],
       text: 'לקוח מחזיק בחשבונות רבים, וחשבון יכול להיות משותף לכמה לקוחות' },
-    { key: 'r_cust_branch', label: 'משויך ל', a: 'customers', b: 'branches', cardA: 'N', cardB: '1', card: '1:N', degree: 'בינארי',
+    { key: 'r_cust_branch', label: 'משויך ל', a: 'customers', b: 'branches', pA: '(1,1)', pB: '(0,N)', part: ['כל לקוח משויך לסניף אחד בדיוק', 'בסניף 0 עד N לקוחות'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "קוד סניף" בטבלת לקוחות (צד ה"רבים")', text: 'כל לקוח משויך לסניף אחד; בסניף לקוחות רבים' },
-    { key: 'r_acc_branch', label: 'מתנהל ב', a: 'accounts', b: 'branches', cardA: 'N', cardB: '1', card: '1:N', degree: 'בינארי',
+    { key: 'r_acc_branch', label: 'מתנהל ב', a: 'accounts', b: 'branches', pA: '(1,1)', pB: '(0,N)', part: ['כל חשבון מתנהל בסניף אחד בדיוק', 'בסניף 0 עד N חשבונות'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "קוד סניף" בטבלת חשבונות', text: 'כל חשבון מתנהל בסניף אחד; בסניף חשבונות רבים' },
-    { key: 'r_txn', label: 'כולל', a: 'accounts', b: 'transactions', cardA: '1', cardB: 'N', card: '1:N', degree: 'בינארי',
+    { key: 'r_txn', label: 'כולל', a: 'accounts', b: 'transactions', pA: '(0,N)', pB: '(1,1)', part: ['בחשבון 0 עד N תנועות', 'כל תנועה שייכת לחשבון אחד בדיוק'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "מספר חשבון" בטבלת תנועות', text: 'חשבון כולל תנועות רבות; כל תנועה שייכת לחשבון אחד' },
-    { key: 'r_loan', label: 'לוקח', a: 'customers', b: 'loans', cardA: '1', cardB: 'N', card: '1:N', degree: 'בינארי',
+    { key: 'r_loan', label: 'לוקח', a: 'customers', b: 'loans', pA: '(0,N)', pB: '(1,1)', part: ['ללקוח 0 עד N הלוואות', 'כל הלוואה שייכת ללקוח אחד בדיוק'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "ת.ז" בטבלת הלוואות', text: 'לקוח יכול לקחת הלוואות רבות; כל הלוואה שייכת ללקוח אחד' },
-    { key: 'r_emp_branch', label: 'מועסק ב', a: 'employees', b: 'branches', cardA: 'N', cardB: '1', card: '1:N', degree: 'בינארי',
+    { key: 'r_emp_branch', label: 'מועסק ב', a: 'employees', b: 'branches', pA: '(1,1)', pB: '(1,N)', part: ['כל עובד מועסק בסניף אחד בדיוק', 'בסניף עובד אחד לפחות ועד N עובדים'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "קוד סניף" בטבלת עובדים', text: 'עובד מועסק בסניף אחד; בסניף עובדים רבים' },
-    { key: 'r_manages', label: 'מנהל של', a: 'employees', b: 'employees', cardA: '1', cardB: 'N', card: '1:N', degree: 'אונארי (רקורסיבי)',
+    { key: 'r_manages', label: 'מנהל של', a: 'employees', b: 'employees', pA: '(0,N)', pB: '(0,1)', part: ['בתפקיד מנהל: מנהל 0 עד N עובדים', 'בתפקיד מנוהל: יש לו 0 או 1 מנהל ישיר'], card: '1:N', degree: 'אונארי (רקורסיבי)',
       roles: ['מנהל', 'מנוהל'],
       impl: 'מפתח זר "מנהל ישיר" בטבלת עובדים, המפנה לאותה טבלה', text: 'מנהל אחד מנהל עובדים רבים; לכל עובד מנהל ישיר אחד לכל היותר' }
   ]
@@ -151,10 +151,10 @@ window.SEED = {
   ],
   customers: [
     { customerId: '012345674', fullName: 'שרה כהן', phone: '050-1112233', email: 'sarah@example.com', joinDate: '2018-02-14', branchId: '101' },
-    { customerId: '023456785', fullName: 'דוד לוי', phone: '052-2223344', email: 'david@example.com', joinDate: '2019-07-01', branchId: '101' },
-    { customerId: '034567896', fullName: 'רחל אברהם', phone: '054-3334455', email: 'rachel@example.com', joinDate: '2020-11-23', branchId: '205' },
-    { customerId: '045678907', fullName: 'אבי מזרחי', phone: '053-4445566', email: 'avi@example.com', joinDate: '2021-03-08', branchId: '312' },
-    { customerId: '056789018', fullName: 'תמר פרידמן', phone: '058-5556677', email: 'tamar@example.com', joinDate: '2022-05-30', branchId: '205' },
+    { customerId: '023456783', fullName: 'דוד לוי', phone: '052-2223344', email: 'david@example.com', joinDate: '2019-07-01', branchId: '101' },
+    { customerId: '034567891', fullName: 'רחל אברהם', phone: '054-3334455', email: 'rachel@example.com', joinDate: '2020-11-23', branchId: '205' },
+    { customerId: '045678901', fullName: 'אבי מזרחי', phone: '053-4445566', email: 'avi@example.com', joinDate: '2021-03-08', branchId: '312' },
+    { customerId: '056789019', fullName: 'תמר פרידמן', phone: '058-5556677', email: 'tamar@example.com', joinDate: '2022-05-30', branchId: '205' },
     { customerId: '067890129', fullName: 'יעקב חדד', phone: '050-6667788', email: '', joinDate: '2024-01-17', branchId: '312' }
   ],
   accounts: [
@@ -169,12 +169,12 @@ window.SEED = {
   ownerships: [
     { customerId: '012345674', accountNo: 10001, role: 'בעלים ראשי', since: '2018-02-14' },
     { customerId: '012345674', accountNo: 10002, role: 'בעלים ראשי', since: '2019-01-03' },
-    { customerId: '023456785', accountNo: 10001, role: 'שותף', since: '2020-06-01' },
-    { customerId: '023456785', accountNo: 10003, role: 'בעלים ראשי', since: '2019-07-01' },
-    { customerId: '034567896', accountNo: 10004, role: 'בעלים ראשי', since: '2020-11-23' },
-    { customerId: '045678907', accountNo: 10005, role: 'בעלים ראשי', since: '2021-03-08' },
-    { customerId: '056789018', accountNo: 10006, role: 'בעלים ראשי', since: '2022-05-30' },
-    { customerId: '034567896', accountNo: 10006, role: 'מיופה כוח', since: '2023-02-10' },
+    { customerId: '023456783', accountNo: 10001, role: 'שותף', since: '2020-06-01' },
+    { customerId: '023456783', accountNo: 10003, role: 'בעלים ראשי', since: '2019-07-01' },
+    { customerId: '034567891', accountNo: 10004, role: 'בעלים ראשי', since: '2020-11-23' },
+    { customerId: '045678901', accountNo: 10005, role: 'בעלים ראשי', since: '2021-03-08' },
+    { customerId: '056789019', accountNo: 10006, role: 'בעלים ראשי', since: '2022-05-30' },
+    { customerId: '034567891', accountNo: 10006, role: 'מיופה כוח', since: '2023-02-10' },
     { customerId: '067890129', accountNo: 10007, role: 'בעלים ראשי', since: '2024-01-17' }
   ],
   transactions: [
@@ -193,8 +193,8 @@ window.SEED = {
   ],
   loans: [
     { loanId: 501, customerId: '012345674', purpose: 'משכנתא', amount: 950000, rate: 4.2, startDate: '2021-05-01', months: 300 },
-    { loanId: 502, customerId: '034567896', purpose: 'רכב', amount: 85000, rate: 5.9, startDate: '2024-02-15', months: 60 },
-    { loanId: 503, customerId: '045678907', purpose: 'כללית', amount: 120000, rate: 6.5, startDate: '2025-08-01', months: 48 },
+    { loanId: 502, customerId: '034567891', purpose: 'רכב', amount: 85000, rate: 5.9, startDate: '2024-02-15', months: 60 },
+    { loanId: 503, customerId: '045678901', purpose: 'כללית', amount: 120000, rate: 6.5, startDate: '2025-08-01', months: 48 },
     { loanId: 504, customerId: '012345674', purpose: 'לימודים', amount: 30000, rate: 3.1, startDate: '2026-01-10', months: 36 }
   ]
 };
