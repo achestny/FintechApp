@@ -23,9 +23,33 @@
     zoomIn: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/>',
     zoomOut: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6"/>',
     fit: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    check: '<path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'
   };
   window.ICON = (name, size) => svg(P[name] || '', size);
+
+  /* ---------- גרסה ובדיקת עדכונים ----------
+     הדפדפן עלול להמשיך להריץ גרסה ישנה בלשונית פתוחה. בודקים מול השרת (בלי מטמון)
+     ואם פורסמה גרסה חדשה – מציגים פס "רענון". */
+  const metaV = document.querySelector('meta[name="app-version"]');
+  const APP_VERSION = metaV ? metaV.content : '?';
+  window.APP_VERSION = APP_VERSION;
+  async function checkUpdate() {
+    if (location.protocol === 'file:') return;
+    try {
+      const res = await fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' });
+      const m = (await res.text()).match(/name="app-version" content="([^"]+)"/);
+      if (m && m[1] !== APP_VERSION && !document.getElementById('updBar')) {
+        const bar = document.createElement('div');
+        bar.id = 'updBar'; bar.className = 'upd-bar';
+        bar.innerHTML = `<span>פורסמה גרסה חדשה של האתר (${m[1]})</span><button type="button" class="btn sm primary">רענון</button>`;
+        bar.querySelector('button').addEventListener('click', () => location.reload());
+        document.body.appendChild(bar);
+      }
+    } catch (e) { /* ללא רשת – מתעלמים */ }
+  }
+  window.addEventListener('load', checkUpdate);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 
   /**
    * בניית תפריט הצד.
@@ -48,9 +72,10 @@
       ${link(`${base}#/`, 'home', 'לוח בקרה')}
       <div class="nav-sec">ישויות</div>
       ${S.entities.map(e => link(`${base}#/e/${e.key}`, e.key, e.label, `style="--c:${e.color}"`)).join('')}
-      <div class="nav-sec">מודל הנתונים</div>
+      <div class="nav-sec">מודל ואיכות נתונים</div>
       ${link('erd.html', 'erd', 'תרשים ERD')}
-      <div class="side-foot">גרסת הדגמה · נתונים פיקטיביים</div>`;
+      ${link(`${base}#/check`, 'check', 'בדיקת תקינות', 'data-badge="bad"')}
+      <div class="side-foot">גרסה ${APP_VERSION} · נתונים פיקטיביים</div>`;
   };
 
   // תפריט נייד

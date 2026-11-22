@@ -39,7 +39,7 @@
   /* צבעי הסגנון: ישות כתומה, קשר כחול, תכונה ירוקה, (min,max) באדום */
   const C = { entF: '#fff8e8', entS: '#c9802b', relF: '#e4f0fb', relS: '#2b4f9e', atF: '#eef6e7', atS: '#5c9a4b', ln: '#555' };
   const LRI = '\u2066', PDI = '\u2069';
-  const badge = (x, y, t) => `<text class="mm" x="${x}" y="${y + 5}" text-anchor="middle">${LRI}${t}${PDI}</text>`;
+  const badge = (x, y, t) => !t ? '' : `<text class="mm" x="${x}" y="${y + 5}" text-anchor="middle">${LRI}${t}${PDI}</text>`;
   function cardLabel(ex, ey, tx, ty, text) {
     const dx = tx - ex, dy = ty - ey, len = Math.hypot(dx, dy) || 1;
     const tEdge = Math.min(Math.abs((EW / 2) / (dx || 1e-9)), Math.abs((EH / 2) / (dy || 1e-9)));

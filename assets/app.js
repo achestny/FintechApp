@@ -3,7 +3,7 @@
   'use strict';
 
   const S = window.SCHEMA;
-  const STORE = 'bank-crm-v2';
+  const STORE = 'bank-crm-v3';
   let db;
 
   /* ---------- Storage ---------- */
@@ -73,6 +73,7 @@
   /* ---------- Shell ---------- */
   function shell(active, crumbs) {
     const counts = {}; S.entities.forEach(e => { counts[e.key] = db[e.key].length; });
+    const iss = scanAll(); counts.check = iss.filter(i => i.sev === 'error').length || null;
     renderSidebar(active, '', counts);
     $('#crumbs').innerHTML = crumbs.map((c, i) => i < crumbs.length - 1
       ? `<a href="${c[1]}">${esc(c[0])}</a>${ICON('back', 14)}` : `<b>${esc(c[0])}</b>`).join('');
@@ -320,6 +321,157 @@
     return true;
   }
 
+  /* =====================================================================
+     מנגנון בדיקת תקינות – משמש גם את הטופס (בזמן הקלדה ובשמירה)
+     וגם את דוח "בדיקת תקינות הנתונים" שסורק את כל מסד הנתונים
+     ===================================================================== */
+  const TODAY = () => new Date().toISOString().slice(0, 10);
+  function validIsraeliId(id) {
+    const s = String(id);
+    if (!/^\d{9}$/.test(s)) return false;
+    let sum = 0;
+    for (let i = 0; i < 9; i++) { const d = Number(s[i]) * ((i % 2) + 1); sum += d > 9 ? d - 9 : d; }
+    return sum % 10 === 0;
+  }
+  const isDate = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v + 'T00:00:00'));
+
+  /** בודק רשומה אחת. מחזיר אובייקט { שדה: הודעה } ; המפתח _form = שגיאה כללית */
+  function validateRecord(key, data, rec) {
+    const e = ent(key), errs = {};
+    const err = (k, m) => { if (!errs[k]) errs[k] = m; };
+    e.fields.forEach(f => {
+      const v = data[f.key];
+      if (v === '' || v == null) { if (f.required) err(f.key, 'שדה חובה'); return; }
+      if (NUMERIC.includes(f.type)) {
+        if (typeof v !== 'number' || isNaN(v)) return err(f.key, f.type === 'percent' ? 'יש להזין מספר, לדוגמה 4.5' : 'יש להזין מספר');
+        if (f.type === 'number' && !Number.isInteger(v)) return err(f.key, 'יש להזין מספר שלם');
+        if (f.min != null && v < f.min) return err(f.key, `הערך המינימלי הוא ${f.min}`);
+        if (f.max != null && v > f.max) return err(f.key, `הערך המקסימלי הוא ${f.max}`);
+      }
+      if (f.pattern && !new RegExp(f.pattern).test(String(v))) return err(f.key, `פורמט לא תקין${f.hint ? ` (${f.hint})` : ''}`);
+      if (f.idCheck && !validIsraeliId(v)) return err(f.key, 'מספר זהות לא תקין (ספרת ביקורת שגויה)');
+      if (f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return err(f.key, 'כתובת דוא"ל לא תקינה');
+      if (f.type === 'date') {
+        if (!isDate(v)) return err(f.key, 'תאריך לא תקין');
+        if (v < '1950-01-01') return err(f.key, 'תאריך מוקדם מדי');
+        if (f.noFuture && v > TODAY()) return err(f.key, 'התאריך לא יכול להיות עתידי');
+      }
+      if (f.type === 'select' && !f.options.includes(v)) return err(f.key, 'ערך שאינו ברשימה');
+      if (f.type === 'ref' && !findBy(f.ref, v)) return err(f.key, `${ent(f.ref).single} לא קיים במערכת (מפתח זר יתום)`);
+    });
+    businessRules(key, data, rec, err);
+    const newPk = pkOf(e, data), oldPk = rec ? pkOf(e, rec) : null;
+    if (e.pk.every(k => data[k] !== '' && data[k] != null) && newPk !== oldPk && db[key].some(r => pkOf(e, r) === newPk)) {
+      errs._form = e.pk.length > 1 ? 'צירוף זה כבר קיים – מפתח ראשי משולב חייב להיות ייחודי'
+        : `${e.fields.find(f => f.key === e.pk[0]).label} כבר קיים – מפתח ראשי חייב להיות ייחודי`;
+      if (e.pk.length === 1) err(e.pk[0], 'ערך זה כבר קיים');
+    }
+    return errs;
+  }
+
+  /* כללים עסקיים (בין שדות ובין טבלאות) */
+  function businessRules(key, data, rec, err) {
+    const acc = data.accountNo != null && data.accountNo !== '' ? findBy('accounts', data.accountNo) : null;
+    if (key === 'employees' && data.managerId !== '' && data.managerId != null) {
+      if (String(data.managerId) === String(data.empId)) err('managerId', 'עובד לא יכול לנהל את עצמו');
+      let cur = findBy('employees', data.managerId), guard = 0;
+      while (cur && guard++ < 100) {
+        if (String(cur.empId) === String(data.empId)) { err('managerId', 'מעגל ניהול: העובד אינו יכול להיות מנהל של המנהל שלו'); break; }
+        cur = cur.managerId === '' || cur.managerId == null ? null : findBy('employees', cur.managerId);
+      }
+    }
+    if (key === 'transactions' && acc) {
+      const isNew = !rec || String(rec.accountNo) !== String(data.accountNo) || rec.amount !== data.amount || rec.type !== data.type;
+      if (acc.status === 'סגור' && isNew) err('accountNo', 'לא ניתן לבצע תנועה בחשבון סגור');
+      if (data.date && acc.openDate && data.date < acc.openDate) err('date', `התאריך מוקדם מפתיחת החשבון (${fdate(acc.openDate)})`);
+      if (data.type === 'משיכה' && typeof data.amount === 'number' && acc.type !== 'עו"ש') {
+        const others = db.transactions.filter(t => String(t.accountNo) === String(acc.accountNo) && t !== rec)
+          .reduce((s, t) => s + (t.type === 'הפקדה' ? 1 : -1) * Number(t.amount || 0), 0);
+        if (others - data.amount < 0) err('amount', `משיכה גבוהה מהיתרה (${money(others, curOf(acc))}). משיכת יתר מותרת רק בעו"ש`);
+      }
+    }
+    if (key === 'ownerships' && acc && data.since && acc.openDate && data.since < acc.openDate)
+      err('since', `התאריך מוקדם מפתיחת החשבון (${fdate(acc.openDate)})`);
+    if (key === 'accounts' && rec && rec.currency !== data.currency &&
+        db.transactions.some(t => String(t.accountNo) === String(rec.accountNo)))
+      err('currency', 'לא ניתן לשנות מטבע לחשבון שיש בו תנועות');
+  }
+
+  /** סריקת כל מסד הנתונים – מחזיר רשימת ממצאים */
+  function scanAll() {
+    const issues = [];
+    const add = (sev, key, r, field, msg) => issues.push({ sev, key, r, field, msg });
+    S.entities.forEach(e => {
+      const seen = new Map();
+      db[e.key].forEach(r => {
+        const k = pkOf(e, r);
+        if (seen.has(k)) add('error', e.key, r, e.pk[0], 'מפתח ראשי כפול');
+        seen.set(k, true);
+        const errs = validateRecord(e.key, r, r);
+        Object.keys(errs).filter(f => f !== '_form').forEach(f => add('error', e.key, r, f, errs[f]));
+      });
+    });
+    // כללי השתתפות בקשרים (אזהרות)
+    db.accounts.forEach(a => {
+      if (!db.ownerships.some(o => String(o.accountNo) === String(a.accountNo))) add('warn', 'accounts', a, null, 'חשבון ללא בעלים (אין רשומה בטבלת "בעלות בחשבונות")');
+      if (a.status === 'סגור' && balanceOf(a) !== 0) add('warn', 'accounts', a, null, `חשבון סגור עם יתרה של ${money(balanceOf(a), curOf(a))}`);
+      if (a.type === 'עו"ש' && balanceOf(a) < 0) add('warn', 'accounts', a, null, `חשבון במשיכת יתר (${money(balanceOf(a), curOf(a))})`);
+    });
+    db.customers.forEach(c => {
+      if (!db.ownerships.some(o => String(o.customerId) === String(c.customerId))) add('warn', 'customers', c, null, 'לקוח ללא חשבון');
+    });
+    db.branches.forEach(b => {
+      if (!db.employees.some(x => String(x.branchId) === String(b.branchId))) add('warn', 'branches', b, null, 'סניף ללא עובדים');
+    });
+    return issues;
+  }
+  window.__scanAll = () => scanAll();
+
+  /* ---------- Integrity report ---------- */
+  function viewCheck() {
+    shell('check', [['לוח בקרה', '#/'], ['בדיקת תקינות', '#/check']]);
+    const issues = scanAll();
+    const errors = issues.filter(i => i.sev === 'error'), warns = issues.filter(i => i.sev === 'warn');
+    const records = S.entities.reduce((s, e) => s + db[e.key].length, 0);
+    const fieldOf = (key, f) => (f ? (ent(key).fields.find(x => x.key === f) || {}).label || f : '—');
+    const rows = issues.map(i => {
+      const e = ent(i.key);
+      return `<tr data-go="${href(i.key, i.r)}">
+        <td><span class="tag ${i.sev === 'error' ? 'bad' : 'mid'}">${i.sev === 'error' ? 'שגיאה' : 'אזהרה'}</span></td>
+        <td><span class="chip" style="--c:${e.color}">${esc(e.single)}</span></td>
+        <td style="font-weight:600">${esc(titleOf(i.key, i.r))}</td>
+        <td class="muted">${esc(fieldOf(i.key, i.field))}</td>
+        <td style="white-space:normal">${esc(i.msg)}</td>
+        <td class="actions" style="opacity:1"><button class="btn sm" data-fix="${i.key}" data-pk="${esc(pkOf(e, i.r))}" type="button">${ICON('edit', 14)} תיקון</button></td></tr>`;
+    }).join('');
+    $('#view').innerHTML = `
+      <div class="page-head"><div>
+        <div class="eyebrow" style="--c:#16a34a"><span class="tile" style="--c:#16a34a">${ICON('check', 16)}</span>איכות נתונים</div>
+        <h1>בדיקת תקינות הנתונים</h1>
+        <p>סריקה של כל הרשומות במערכת: שדות חובה, פורמטים (ת.ז עם ספרת ביקורת, טלפון, דוא"ל, תאריכים), טווחי ערכים, מפתחות ראשיים כפולים, מפתחות זרים יתומים וכללים עסקיים.</p></div>
+        <div class="actions"><button class="btn" id="rescan" type="button">${ICON('check', 16)} הרצת בדיקה מחדש</button></div></div>
+      <div class="kpis">
+        <div class="kpi ${issues.length ? '' : 'hero ok'}"><div class="top"><span class="lbl">סטטוס</span><span class="tile" style="--c:${errors.length ? '#e11d48' : warns.length ? '#d97706' : '#16a34a'}">${ICON('check', 20)}</span></div>
+          <div class="val" style="font-size:24px">${errors.length ? 'נמצאו שגיאות' : warns.length ? 'תקין, עם אזהרות' : 'הנתונים תקינים'}</div>
+          <div class="foot">נבדק ב-${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div></div>
+        <div class="kpi"><div class="top"><span class="lbl">רשומות שנבדקו</span></div><div class="val">${records}</div><div class="foot">ב-${S.entities.length} טבלאות</div></div>
+        <div class="kpi"><div class="top"><span class="lbl">שגיאות</span></div><div class="val ${errors.length ? 'neg' : ''}">${errors.length}</div><div class="foot">חובה לתקן</div></div>
+        <div class="kpi"><div class="top"><span class="lbl">אזהרות</span></div><div class="val" style="${warns.length ? 'color:#b45309' : ''}">${warns.length}</div><div class="foot">מומלץ לבדוק</div></div>
+      </div>
+      <div class="card flush">${issues.length ? `<div class="table-wrap"><table class="data">
+        <thead><tr><th>חומרה</th><th>ישות</th><th>רשומה</th><th>שדה</th><th>תיאור</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : `<div class="empty">${ICON('check', 28)}<div style="margin-top:8px;font-weight:600;color:var(--ink)">לא נמצאו בעיות</div>כל ${records} הרשומות עומדות בכל כללי התקינות.</div>`}</div>
+      <div class="card"><div class="card-head"><h2>הכללים שנבדקים</h2></div>
+        <div class="rules">
+          <div><b>שלמות ישות</b><span>שדות חובה מלאים, מפתח ראשי ייחודי (כולל מפתח משולב)</span></div>
+          <div><b>שלמות התייחסות</b><span>כל מפתח זר מצביע על רשומה קיימת; אין מחיקה של רשומה שיש לה רשומות תלויות</span></div>
+          <div><b>תחום ערכים</b><span>ת.ז עם ספרת ביקורת, טלפון, דוא"ל, תאריכים לא עתידיים, ריבית 0–30%, מספרים שלמים</span></div>
+          <div><b>כללים עסקיים</b><span>אין תנועות בחשבון סגור, אין משיכת יתר מחוץ לעו"ש, אין מעגל ניהול, תנועה/צירוף לא לפני פתיחת החשבון</span></div>
+          <div><b>השתתפות בקשרים</b><span>לכל חשבון יש בעלים, לכל לקוח יש חשבון, לכל סניף יש עובדים (אזהרה)</span></div>
+        </div></div>`;
+    $('#rescan').addEventListener('click', () => { route(true); toast('הבדיקה הושלמה'); });
+  }
+
   /* ---------- Form ---------- */
   let formCtx = null;
   const NUMERIC = ['number', 'money', 'percent'];
@@ -327,136 +479,121 @@
   function inputFor(e, f, rec, isEdit) {
     const v = rec ? rec[f.key] : (f.auto ? nextId(e.key, f.key) : '');
     const lock = isEdit && e.pk.includes(f.key);
-    const req = f.required ? 'required' : '';
     const id = `f_${f.key}`;
     let ctl;
     if (f.type === 'select') {
-      ctl = `<select id="${id}" name="${f.key}" ${req} ${lock ? 'disabled' : ''}><option value="">בחירה...</option>
+      ctl = `<select id="${id}" name="${f.key}" ${lock ? 'disabled' : ''}><option value="">בחירה...</option>
         ${f.options.map(o => `<option value="${esc(o)}" ${String(v) === o ? 'selected' : ''}>${esc(optLabel(f, o))}</option>`).join('')}</select>`;
     } else if (f.type === 'ref') {
       const te = ent(f.ref);
       let opts = db[f.ref];
       if (f.ref === e.key && rec) opts = opts.filter(o => pkOf(te, o) !== pkOf(e, rec));
-      ctl = `<select id="${id}" name="${f.key}" ${req} ${lock ? 'disabled' : ''}>
+      ctl = `<select id="${id}" name="${f.key}" ${lock ? 'disabled' : ''}>
         <option value="">${f.required ? 'בחירה...' : '— ללא —'}</option>
         ${opts.map(o => { const k = pkOf(te, o); return `<option value="${esc(k)}" ${String(v) === k ? 'selected' : ''}>${esc(titleOf(f.ref, o))}</option>`; }).join('')}</select>`;
     } else {
       const numeric = NUMERIC.includes(f.type);
       const t = { date: 'date', email: 'email', tel: 'tel' }[f.type] || 'text';
-      const im = numeric ? `inputmode="${f.type === 'number' ? 'numeric' : 'decimal'}" autocomplete="off"` : '';
+      const im = numeric ? `inputmode="${f.type === 'number' ? 'numeric' : 'decimal'}" autocomplete="off"` : (f.pattern && /\\d/.test(f.pattern) ? 'inputmode="numeric"' : '');
       const ltr = numeric || t === 'tel' || t === 'email' ? 'dir="ltr" style="text-align:right"' : '';
       const ph = f.type === 'percent' ? 'placeholder="לדוגמה 4.5"' : f.type === 'money' ? 'placeholder="לדוגמה 50,000"' : '';
-      ctl = `<input id="${id}" name="${f.key}" type="${t}" value="${esc(v)}" ${req} ${im} ${ltr} ${ph} ${(lock || f.auto) ? 'readonly' : ''}>`;
+      const mx = f.type === 'date' && f.noFuture ? `max="${TODAY()}"` : '';
+      ctl = `<input id="${id}" name="${f.key}" type="${t}" value="${esc(v)}" ${im} ${ltr} ${ph} ${mx} ${(lock || f.auto) ? 'readonly' : ''}>`;
     }
-    return `<div class="field"><label for="${id}">${esc(f.label)} ${f.required ? '<span class="req">*</span>' : ''}</label>
+    return `<div class="field" data-field="${f.key}"><label for="${id}">${esc(f.label)} ${f.required ? '<span class="req">*</span>' : ''}</label>
       ${ctl}${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}<span class="err" data-err="${f.key}"></span></div>`;
   }
   function openForm(key, rec) {
     const e = ent(key);
-    formCtx = { key, rec };
+    formCtx = { key, rec, touched: new Set(), submitted: false };
     $('#dlgTitle').textContent = rec ? `עריכת ${e.single}` : `${e.single} חדש`;
     $('#dlgTile').style.setProperty('--c', e.color);
     $('#dlgTile').innerHTML = ICON(key, 20);
     $('#dlgBody').innerHTML = e.fields.map(f => inputFor(e, f, rec, !!rec)).join('');
+    $('#dlgBody').scrollTop = 0;
     $('#formMsg').textContent = '';
     const d = $('#dlg');
-    if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+    if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
+    updateMoreHint();
   }
   function closeForm() { const d = $('#dlg'); if (d.close) d.close(); else d.removeAttribute('open'); formCtx = null; }
 
   /* פענוח מספר שהוקלד בחופשיות: "50,000", "₪50000", "4.5%", "4,5" */
   function parseNum(raw, type) {
-    let t = String(raw).replace(/[\s\u200e\u200f₪$€£%]/g, '');
-    if (type === 'percent') t = t.replace(',', '.');                 // בריבית פסיק = נקודה עשרונית
-    else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, ''); // מפריד אלפים
-    else if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(',', '.');      // פסיק עשרוני
+    let t = String(raw).replace(/[\s‎‏₪$€£%]/g, '');
+    if (type === 'percent') t = t.replace(',', '.');
+    else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, '');
+    else if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(',', '.');
     return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
   }
   function readValue(f, form) {
     const el = form.elements[f.key];
+    if (!el) return '';
     if (el.disabled && formCtx.rec) return formCtx.rec[f.key];
-    const v = el.value.trim();
+    const v = String(el.value || '').trim();
     if (v === '') return '';
     if (NUMERIC.includes(f.type)) return parseNum(v, f.type);
+    if (f.type === 'tel') return v.replace(/\s/g, '');
     if (f.type === 'ref') {
       const te = ent(f.ref), tf = te.fields.find(x => x.key === te.pk[0]);
       return tf.type === 'number' ? Number(v) : v;
     }
     return v;
   }
+  function readForm() {
+    const e = ent(formCtx.key), form = $('#dlgForm'), data = {};
+    e.fields.forEach(f => { data[f.key] = readValue(f, form); });
+    return data;
+  }
+  /** מציג שגיאות: בזמן הקלדה רק לשדות שנגעו בהם; בשמירה – לכולם */
+  function showErrors(errs, all) {
+    const form = $('#dlgForm');
+    form.querySelectorAll('.field').forEach(fld => {
+      const k = fld.dataset.field, show = all || formCtx.touched.has(k);
+      const msg = show ? errs[k] : '';
+      fld.classList.toggle('invalid', !!msg);
+      const val = readValue(ent(formCtx.key).fields.find(f => f.key === k), form);
+      fld.classList.toggle('valid', show && !msg && val !== '' && !fld.querySelector('[readonly],[disabled]'));
+      fld.querySelector('.err').textContent = msg || '';
+    });
+    const n = Object.keys(errs).filter(k => k !== '_form').length;
+    const msg = errs._form || (n ? (n === 1 ? 'יש לתקן את השדה המסומן' : `יש לתקן ${n} שדות מסומנים`) : '');
+    $('#formMsg').textContent = all || formCtx.submitted ? msg : '';
+  }
+  function liveValidate(ev) {
+    if (!formCtx) return;
+    const fld = ev.target.closest('.field');
+    if (fld && (ev.type !== 'input' || fld.classList.contains('invalid') || formCtx.submitted)) formCtx.touched.add(fld.dataset.field);
+    showErrors(validateRecord(formCtx.key, readForm(), formCtx.rec), formCtx.submitted);
+  }
   function submitForm(ev) {
-    ev.preventDefault();
+    if (ev) ev.preventDefault();
     if (!formCtx) return;
     const { key, rec } = formCtx;
     const e = ent(key);
-    const form = $('#dlgForm');
-    const data = {};
-    let ok = true;
-    form.querySelectorAll('[data-err]').forEach(x => { x.textContent = ''; });
-    form.querySelectorAll('.field.invalid').forEach(x => x.classList.remove('invalid'));
-    $('#formMsg').textContent = '';
-    const err = (k, m) => {
-      ok = false;
-      const x = form.querySelector(`[data-err="${k}"]`);
-      if (x && !x.textContent) { x.textContent = m; x.closest('.field').classList.add('invalid'); }
-    };
-
-    e.fields.forEach(f => {
-      const v = readValue(f, form);
-      data[f.key] = v;
-      if (f.required && (v === '' || v == null)) return err(f.key, 'שדה חובה');
-      if (v === '') return;
-      if (f.pattern && !new RegExp(f.pattern).test(String(v))) err(f.key, `ערך לא תקין (${f.hint || ''})`);
-      if (typeof v === 'number' && isNaN(v)) return err(f.key, f.type === 'percent' ? 'יש להזין מספר, לדוגמה 4.5' : 'יש להזין מספר');
-      if (f.type === 'number' && !Number.isInteger(v)) return err(f.key, 'יש להזין מספר שלם');
-      if (f.min != null && v < f.min) err(f.key, `הערך המינימלי הוא ${f.min}`);
-      if (f.max != null && v > f.max) err(f.key, `הערך המקסימלי הוא ${f.max}`);
-      if (f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) err(f.key, 'כתובת דוא"ל לא תקינה');
-    });
-    if (ok) businessRules(key, data, rec, err);
-    if (!ok) return formFail();
-
-    const newPk = pkOf(e, data), oldPk = rec ? pkOf(e, rec) : null;
-    if (newPk !== oldPk && db[key].some(r => pkOf(e, r) === newPk)) {
-      $('#formMsg').textContent = e.pk.length > 1
-        ? 'צירוף זה כבר קיים – מפתח ראשי משולב חייב להיות ייחודי.'
-        : `${e.fields.find(f => f.key === e.pk[0]).label} כבר קיים – מפתח ראשי חייב להיות ייחודי.`;
-      return formFail(true);
-    }
+    formCtx.submitted = true;
+    const data = readForm();
+    const errs = validateRecord(key, data, rec);
+    showErrors(errs, true);
+    if (Object.keys(errs).length) return formFail();
     if (rec) Object.assign(rec, data); else db[key].push(data);
     save(); closeForm();
     toast(rec ? 'השינויים נשמרו' : `${e.single} נוסף בהצלחה`);
-    route();
+    route(true);
   }
-
-  function formFail(keepMsg) {
-    const form = $('#dlgForm');
-    const bad = form.querySelectorAll('.field.invalid');
-    if (!keepMsg) $('#formMsg').textContent = bad.length === 1 ? 'יש לתקן את השדה המסומן' : `יש לתקן ${bad.length} שדות מסומנים`;
-    const first = bad[0] && bad[0].querySelector('input,select');
-    if (first) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); first.focus({ preventScroll: true }); }
+  function formFail() {
+    const first = document.querySelector('#dlgForm .field.invalid input, #dlgForm .field.invalid select');
+    if (first) {
+      const body = $('#dlgBody'), fld = first.closest('.field');
+      body.scrollTop = Math.max(0, fld.offsetTop - body.offsetTop - 12);
+      try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); }
+    }
     const box = $('#dlg'); box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
   }
-
-  /* כללים עסקיים מעבר לבדיקת השדות */
-  function businessRules(key, data, rec, err) {
-    if (key === 'employees' && data.managerId !== '' && data.managerId != null) {
-      // מניעת מעגל ניהול (A מנהל את B ו-B מנהל את A)
-      let cur = findBy('employees', data.managerId), guard = 0;
-      while (cur && guard++ < 100) {
-        if (String(cur.empId) === String(data.empId)) return err('managerId', 'מעגל ניהול: העובד אינו יכול להיות מנהל של המנהל שלו');
-        cur = cur.managerId === '' || cur.managerId == null ? null : findBy('employees', cur.managerId);
-      }
-    }
-    if (key === 'transactions') {
-      const a = findBy('accounts', data.accountNo);
-      const changed = !rec || String(rec.accountNo) !== String(data.accountNo) || rec.amount !== data.amount || rec.type !== data.type;
-      if (a && a.status === 'סגור' && changed) err('accountNo', 'לא ניתן לבצע תנועה בחשבון סגור');
-    }
-    if (key === 'accounts' && rec && rec.currency !== data.currency &&
-        db.transactions.some(t => String(t.accountNo) === String(rec.accountNo))) {
-      err('currency', 'לא ניתן לשנות מטבע לחשבון שיש בו תנועות');
-    }
+  /* רמז "יש עוד שדות למטה" כשגוף הטופס נגלל */
+  function updateMoreHint() {
+    const b = $('#dlgBody');
+    $('#dlg').classList.toggle('has-more', b.scrollHeight - b.scrollTop - b.clientHeight > 8);
   }
 
   /* ---------- Router ---------- */
@@ -464,6 +601,7 @@
     const parts = decodeURIComponent(location.hash.replace(/^#\/?/, '')).split('/');
     if (parts[0] === 'e' && parts[1] && parts[2]) viewDetail(parts[1], parts.slice(2).join('/'));
     else if (parts[0] === 'e' && parts[1]) viewList(parts[1]);
+    else if (parts[0] === 'check') viewCheck();
     else viewHome();
     if (keepScroll !== true) window.scrollTo(0, 0);
   }
@@ -477,12 +615,17 @@
     if (row && !ev.target.closest('a')) location.hash = row.dataset.go;
   });
   $('#dlgForm').addEventListener('submit', submitForm);
-  $('#dlgForm').addEventListener('input', ev => {
-    const fld = ev.target.closest('.field');
-    if (fld && fld.classList.contains('invalid')) { fld.classList.remove('invalid'); fld.querySelector('.err').textContent = ''; }
-  });
-  $('#dlg').addEventListener('close', () => { formCtx = null; });
+  $('#dlgSave').addEventListener('click', ev => { ev.preventDefault(); submitForm(); });  // גיבוי ל-Safari/iOS
+  $('#dlgForm').addEventListener('input', liveValidate);
+  $('#dlgForm').addEventListener('change', liveValidate);
+  $('#dlgForm').addEventListener('focusout', ev => { if (ev.target.matches('input,select')) liveValidate(ev); });
+  $('#dlgBody').addEventListener('scroll', updateMoreHint, { passive: true });
   $('#dlgCancel').addEventListener('click', closeForm);
+  $('#dlg').addEventListener('close', () => { formCtx = null; });
+  document.addEventListener('click', ev => {
+    const fx = ev.target.closest('[data-fix]');
+    if (fx) { ev.stopPropagation(); const r = findBy(fx.dataset.fix, fx.dataset.pk); if (r) openForm(fx.dataset.fix, r); }
+  }, true);
   window.addEventListener('hashchange', route);
 
   $('#menuBtn').innerHTML = ICON('menu', 20);
