@@ -187,7 +187,13 @@ dialog[open]{animation:pop .18s ease-out}
 .field input[readonly],.field select:disabled{background:#f8fafc;color:var(--muted)}
 .field .hint{font-size:12px;color:var(--faint)}
 .field .err{font-size:12.5px;color:var(--bad)}
-.form-msg{grid-column:1/-1;color:var(--bad);font-size:14px}
+.form-msg{margin-inline-start:auto;align-self:center;color:var(--bad);font-size:14px;font-weight:600}
+.field.invalid input,.field.invalid select{border-color:#fda4af;background-color:#fff5f6}
+.field.invalid input:focus,.field.invalid select:focus{box-shadow:0 0 0 4px rgba(225,29,72,.12)}
+.field .err:empty{display:none}
+.field .err{font-weight:500}
+dialog.shake{animation:shake .35s}
+@keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
 
 /* ================= Toast ================= */
 .toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,16px);background:#0f172a;color:#fff;padding:12px 20px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:60;max-width:92vw;box-shadow:var(--sh-2);font-size:14.5px}

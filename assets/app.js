@@ -322,6 +322,7 @@
 
   /* ---------- Form ---------- */
   let formCtx = null;
+  const NUMERIC = ['number', 'money', 'percent'];
   const nextId = (key, field) => db[key].reduce((m, r) => Math.max(m, Number(r[field]) || 0), 0) + 1;
   function inputFor(e, f, rec, isEdit) {
     const v = rec ? rec[f.key] : (f.auto ? nextId(e.key, f.key) : '');
@@ -340,10 +341,12 @@
         <option value="">${f.required ? 'בחירה...' : '— ללא —'}</option>
         ${opts.map(o => { const k = pkOf(te, o); return `<option value="${esc(k)}" ${String(v) === k ? 'selected' : ''}>${esc(titleOf(f.ref, o))}</option>`; }).join('')}</select>`;
     } else {
-      const t = { money: 'number', percent: 'number', number: 'number', date: 'date', email: 'email', tel: 'tel' }[f.type] || 'text';
-      const extra = [f.min != null ? `min="${f.min}"` : '', f.max != null ? `max="${f.max}"` : '', f.step ? `step="${f.step}"` : (t === 'number' ? 'step="any"' : ''),
-        (lock || f.auto) ? 'readonly' : ''].join(' ');
-      ctl = `<input id="${id}" name="${f.key}" type="${t}" value="${esc(v)}" ${req} ${extra} ${t === 'tel' || t === 'email' ? 'dir="ltr" style="text-align:right"' : ''}>`;
+      const numeric = NUMERIC.includes(f.type);
+      const t = { date: 'date', email: 'email', tel: 'tel' }[f.type] || 'text';
+      const im = numeric ? `inputmode="${f.type === 'number' ? 'numeric' : 'decimal'}" autocomplete="off"` : '';
+      const ltr = numeric || t === 'tel' || t === 'email' ? 'dir="ltr" style="text-align:right"' : '';
+      const ph = f.type === 'percent' ? 'placeholder="לדוגמה 4.5"' : f.type === 'money' ? 'placeholder="לדוגמה 50,000"' : '';
+      ctl = `<input id="${id}" name="${f.key}" type="${t}" value="${esc(v)}" ${req} ${im} ${ltr} ${ph} ${(lock || f.auto) ? 'readonly' : ''}>`;
     }
     return `<div class="field"><label for="${id}">${esc(f.label)} ${f.required ? '<span class="req">*</span>' : ''}</label>
       ${ctl}${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}<span class="err" data-err="${f.key}"></span></div>`;
@@ -354,18 +357,27 @@
     $('#dlgTitle').textContent = rec ? `עריכת ${e.single}` : `${e.single} חדש`;
     $('#dlgTile').style.setProperty('--c', e.color);
     $('#dlgTile').innerHTML = ICON(key, 20);
-    $('#dlgBody').innerHTML = e.fields.map(f => inputFor(e, f, rec, !!rec)).join('') + '<div class="form-msg" id="formMsg"></div>';
+    $('#dlgBody').innerHTML = e.fields.map(f => inputFor(e, f, rec, !!rec)).join('');
+    $('#formMsg').textContent = '';
     const d = $('#dlg');
     if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
   }
   function closeForm() { const d = $('#dlg'); if (d.close) d.close(); else d.removeAttribute('open'); formCtx = null; }
 
+  /* פענוח מספר שהוקלד בחופשיות: "50,000", "₪50000", "4.5%", "4,5" */
+  function parseNum(raw, type) {
+    let t = String(raw).replace(/[\s\u200e\u200f₪$€£%]/g, '');
+    if (type === 'percent') t = t.replace(',', '.');                 // בריבית פסיק = נקודה עשרונית
+    else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, ''); // מפריד אלפים
+    else if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(',', '.');      // פסיק עשרוני
+    return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
+  }
   function readValue(f, form) {
     const el = form.elements[f.key];
     if (el.disabled && formCtx.rec) return formCtx.rec[f.key];
     const v = el.value.trim();
     if (v === '') return '';
-    if (['number', 'money', 'percent'].includes(f.type)) return Number(v);
+    if (NUMERIC.includes(f.type)) return parseNum(v, f.type);
     if (f.type === 'ref') {
       const te = ent(f.ref), tf = te.fields.find(x => x.key === te.pk[0]);
       return tf.type === 'number' ? Number(v) : v;
@@ -381,8 +393,13 @@
     const data = {};
     let ok = true;
     form.querySelectorAll('[data-err]').forEach(x => { x.textContent = ''; });
+    form.querySelectorAll('.field.invalid').forEach(x => x.classList.remove('invalid'));
     $('#formMsg').textContent = '';
-    const err = (k, m) => { ok = false; const x = form.querySelector(`[data-err="${k}"]`); if (x) x.textContent = m; };
+    const err = (k, m) => {
+      ok = false;
+      const x = form.querySelector(`[data-err="${k}"]`);
+      if (x && !x.textContent) { x.textContent = m; x.closest('.field').classList.add('invalid'); }
+    };
 
     e.fields.forEach(f => {
       const v = readValue(f, form);
@@ -390,24 +407,56 @@
       if (f.required && (v === '' || v == null)) return err(f.key, 'שדה חובה');
       if (v === '') return;
       if (f.pattern && !new RegExp(f.pattern).test(String(v))) err(f.key, `ערך לא תקין (${f.hint || ''})`);
-      if (typeof v === 'number' && isNaN(v)) err(f.key, 'יש להזין מספר');
-      if (f.min != null && v < f.min) err(f.key, `מינימום ${f.min}`);
-      if (f.max != null && v > f.max) err(f.key, `מקסימום ${f.max}`);
+      if (typeof v === 'number' && isNaN(v)) return err(f.key, f.type === 'percent' ? 'יש להזין מספר, לדוגמה 4.5' : 'יש להזין מספר');
+      if (f.type === 'number' && !Number.isInteger(v)) return err(f.key, 'יש להזין מספר שלם');
+      if (f.min != null && v < f.min) err(f.key, `הערך המינימלי הוא ${f.min}`);
+      if (f.max != null && v > f.max) err(f.key, `הערך המקסימלי הוא ${f.max}`);
       if (f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) err(f.key, 'כתובת דוא"ל לא תקינה');
     });
-    if (!ok) return;
+    if (ok) businessRules(key, data, rec, err);
+    if (!ok) return formFail();
 
     const newPk = pkOf(e, data), oldPk = rec ? pkOf(e, rec) : null;
     if (newPk !== oldPk && db[key].some(r => pkOf(e, r) === newPk)) {
       $('#formMsg').textContent = e.pk.length > 1
         ? 'צירוף זה כבר קיים – מפתח ראשי משולב חייב להיות ייחודי.'
         : `${e.fields.find(f => f.key === e.pk[0]).label} כבר קיים – מפתח ראשי חייב להיות ייחודי.`;
-      return;
+      return formFail(true);
     }
     if (rec) Object.assign(rec, data); else db[key].push(data);
     save(); closeForm();
     toast(rec ? 'השינויים נשמרו' : `${e.single} נוסף בהצלחה`);
     route();
+  }
+
+  function formFail(keepMsg) {
+    const form = $('#dlgForm');
+    const bad = form.querySelectorAll('.field.invalid');
+    if (!keepMsg) $('#formMsg').textContent = bad.length === 1 ? 'יש לתקן את השדה המסומן' : `יש לתקן ${bad.length} שדות מסומנים`;
+    const first = bad[0] && bad[0].querySelector('input,select');
+    if (first) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); first.focus({ preventScroll: true }); }
+    const box = $('#dlg'); box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+  }
+
+  /* כללים עסקיים מעבר לבדיקת השדות */
+  function businessRules(key, data, rec, err) {
+    if (key === 'employees' && data.managerId !== '' && data.managerId != null) {
+      // מניעת מעגל ניהול (A מנהל את B ו-B מנהל את A)
+      let cur = findBy('employees', data.managerId), guard = 0;
+      while (cur && guard++ < 100) {
+        if (String(cur.empId) === String(data.empId)) return err('managerId', 'מעגל ניהול: העובד אינו יכול להיות מנהל של המנהל שלו');
+        cur = cur.managerId === '' || cur.managerId == null ? null : findBy('employees', cur.managerId);
+      }
+    }
+    if (key === 'transactions') {
+      const a = findBy('accounts', data.accountNo);
+      const changed = !rec || String(rec.accountNo) !== String(data.accountNo) || rec.amount !== data.amount || rec.type !== data.type;
+      if (a && a.status === 'סגור' && changed) err('accountNo', 'לא ניתן לבצע תנועה בחשבון סגור');
+    }
+    if (key === 'accounts' && rec && rec.currency !== data.currency &&
+        db.transactions.some(t => String(t.accountNo) === String(rec.accountNo))) {
+      err('currency', 'לא ניתן לשנות מטבע לחשבון שיש בו תנועות');
+    }
   }
 
   /* ---------- Router ---------- */
@@ -428,6 +477,11 @@
     if (row && !ev.target.closest('a')) location.hash = row.dataset.go;
   });
   $('#dlgForm').addEventListener('submit', submitForm);
+  $('#dlgForm').addEventListener('input', ev => {
+    const fld = ev.target.closest('.field');
+    if (fld && fld.classList.contains('invalid')) { fld.classList.remove('invalid'); fld.querySelector('.err').textContent = ''; }
+  });
+  $('#dlg').addEventListener('close', () => { formCtx = null; });
   $('#dlgCancel').addEventListener('click', closeForm);
   window.addEventListener('hashchange', route);
 
