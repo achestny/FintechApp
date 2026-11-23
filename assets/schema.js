@@ -42,7 +42,7 @@ window.SCHEMA = {
     {
       key: 'ownerships', label: 'בעלות בחשבונות', single: 'בעלות', en: 'Ownership', color: '#8b5cf6',
       relTable: true,
-      desc: 'טבלת קשר (N:M) בין לקוחות לחשבונות: לקוח יכול להחזיק כמה חשבונות, וחשבון יכול להיות משותף לכמה לקוחות. מפתח ראשי משולב.',
+      desc: 'טבלת קשר בין לקוחות לחשבונות: לקוח יכול להחזיק כמה חשבונות, וחשבון יכול להיות משותף לכמה לקוחות. מפתח ראשי משולב.',
       pk: ['customerId', 'accountNo'],
       fields: [
         { key: 'customerId', label: 'לקוח', type: 'ref', ref: 'customers', required: true },

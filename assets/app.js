@@ -215,7 +215,7 @@
     shell(key, [['לוח בקרה', '#/'], [e.label, `#/e/${key}`]]);
     const rels = relationsFor(key).map(r => {
       const other = r.a === r.b ? 'עצמה' : ent(r.a === key ? r.b : r.a).single;
-      return `<span class="rel-badge"><b>${esc(r.label)}</b> · ${esc(other)} <span class="ltr">${r.card}</span></span>`;
+      return `<span class="rel-badge"><b>${esc(r.label)}</b> · ${esc(other)}</span>`;
     }).join('');
 
     $('#view').innerHTML = `
@@ -272,7 +272,7 @@
       return `<div class="card flush">
         <div class="card-head" style="padding:20px 24px 6px">${tile(re, 18)}<h2>${esc(name)}</h2>
           <span class="count-pill">${rows.length}</span>
-          ${relDef ? `<span class="sub" style="margin-inline-start:auto">קשר "${esc(relDef.label)}" · <span class="ltr">${relDef.card}</span></span>` : ''}</div>
+          ${relDef ? `<span class="sub" style="margin-inline-start:auto">קשר "${esc(relDef.label)}"</span>` : ''}</div>
         ${rows.length ? `<div class="table-wrap"><table class="data"><thead><tr>
           ${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}${(re.computed || []).map(c => `<th>${esc(c.label)}</th>`).join('')}
           </tr></thead><tbody>
