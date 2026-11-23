@@ -31,6 +31,11 @@
   const balanceOf = a => ent('accounts').computed[0].fn(a, db);
   const curOf = a => (a && a.currency) || 'ILS';
   const optLabel = (f, v) => (f.optionLabels && f.optionLabels[v]) || v;
+  // התאמת מין ומספר בעברית
+  const NEW = e => `${e.single} ${e.fem ? 'חדשה' : 'חדש'}`;
+  const ADDED = e => `${e.single} ${e.fem ? 'נוספה' : 'נוסף'} בהצלחה`;
+  const DELETED = e => `${e.single} ${e.fem ? 'נמחקה' : 'נמחק'}`;
+  const plural = (n, one, many) => (n === 1 ? one : `${n} ${many}`);
   const tile = (e, size) => `<span class="tile" style="--c:${e.color}">${ICON(e.key, size || 20)}</span>`;
 
   function fmt(f, r) {
@@ -65,10 +70,7 @@
     return out;
   }
   const related = (key, id) => reverseRefs(key).map(({ e, f }) => ({ e, f, rows: db[e.key].filter(r => String(r[f.key]) === String(id)) }));
-  function relationsFor(key) {
-    if (ent(key).relTable) return S.relations.filter(r => r.key === 'r_owns');
-    return S.relations.filter(r => r.a === key || r.b === key);
-  }
+
 
   /* ---------- Shell ---------- */
   function shell(active, crumbs) {
@@ -115,7 +117,7 @@
     // יתרות מומרות לשקלים לפי השער היציג (חשבונות במט"ח ללא שער – לא נספרים ומסומנים)
     const balances = db.accounts.map(a => ({ a, b: FXN.toILS(balanceOf(a), curOf(a)) }));
     const missing = balances.filter(x => x.b == null);
-    balances.forEach(x => { if (x.b == null) x.b = 0; });
+    balances.forEach(x => { x.miss = x.b == null; if (x.miss) x.b = 0; });
     const totalBal = balances.reduce((s, x) => s + x.b, 0);
     const fxBal = {};
     db.accounts.filter(a => curOf(a) !== 'ILS').forEach(a => { fxBal[curOf(a)] = (fxBal[curOf(a)] || 0) + balanceOf(a); });
@@ -126,16 +128,16 @@
 
     // יתרות לפי סוג חשבון
     const accTypes = ent('accounts').fields.find(f => f.key === 'type').options
-      .map(t => ({ t, v: balances.filter(x => x.a.type === t).reduce((s, x) => s + x.b, 0), n: balances.filter(x => x.a.type === t).length }));
+      .map(t => { const rows = balances.filter(x => x.a.type === t); return { t, v: rows.reduce((s, x) => s + x.b, 0), n: rows.length, miss: rows.filter(x => x.miss).length }; });
     // הלוואות לפי מטרה
     const purposes = ent('loans').fields.find(f => f.key === 'purpose').options
       .map(t => ({ t, v: db.loans.filter(l => l.purpose === t).reduce((s, l) => s + Number(l.amount || 0), 0), n: db.loans.filter(l => l.purpose === t).length }));
     const bars = (rows, color, unit) => {
       const max = Math.max(1, ...rows.map(r => Math.abs(r.v)));
-      return `<div class="bars">${rows.map(r => `<div class="bar-row" title="${esc(r.t)}: ${money(r.v)} · ${r.n} ${unit}">
+      return `<div class="bars">${rows.map(r => `<div class="bar-row" title="${esc(r.t)}: ${r.miss ? 'יש חשבונות במט"ח ללא שער חליפין' : money(r.v)} · ${r.n} ${unit}">
         <span class="name">${esc(r.t)}</span>
         <span class="bar-track"><span class="bar-fill" style="--c:${color};width:${Math.max(0, r.v) / max * 100}%"></span></span>
-        <span class="v">${money(r.v)}</span></div>`).join('')}</div>`;
+        <span class="v">${r.miss && r.miss === r.n ? '<span class="muted" style="font-weight:500">אין שער</span>' : money(r.v) + (r.miss ? '*' : '')}</span></div>`).join('')}</div>`;
     };
 
     // לקוחות מובילים לפי יתרה בחשבונות שבבעלותם
@@ -190,7 +192,7 @@
         <div class="card"><div class="card-head"><h2>לקוחות מובילים</h2><span class="sub">לפי יתרה בחשבונות</span></div>
           <div class="plist">${top.map(x => `<a class="prow" href="${href('customers', x.c)}">
             <span class="avatar" style="--c:${C.color}">${esc(initials(x.c.fullName))}</span>
-            <span><div class="pname">${esc(x.c.fullName)}</div><div class="psub">${x.n} חשבונות</div></span>
+            <span><div class="pname">${esc(x.c.fullName)}</div><div class="psub">${plural(x.n, 'חשבון אחד', 'חשבונות')}</div></span>
             <span class="amt">${money(x.sum)}</span></a>`).join('')}</div></div>
       </div>
 
@@ -213,19 +215,13 @@
     const e = ent(key);
     if (!e) return viewHome();
     shell(key, [['לוח בקרה', '#/'], [e.label, `#/e/${key}`]]);
-    const rels = relationsFor(key).map(r => {
-      const other = r.a === r.b ? 'עצמה' : ent(r.a === key ? r.b : r.a).single;
-      return `<span class="rel-badge"><b>${esc(r.label)}</b> · ${esc(other)}</span>`;
-    }).join('');
-
     $('#view').innerHTML = `
       <div class="page-head">
-        <div><div class="eyebrow" style="--c:${e.color}">${tile(e, 16)}${e.relTable ? 'טבלת קשר' : 'ישות'}</div>
-          <h1>${esc(e.label)} <span class="count-pill" style="vertical-align:middle">${db[key].length}</span></h1>
-          <p>${esc(e.desc)}</p><div class="rel-badges">${rels}</div></div>
+        <div><h1>${esc(e.label)} <span class="count-pill" style="vertical-align:middle">${db[key].length}</span></h1>
+          <p>${esc(e.desc)}</p></div>
         <div class="actions">
           <label class="search">${ICON('search', 17)}<input id="q" type="search" placeholder="חיפוש ב${esc(e.label)}..." value="${esc(searchState[key] || '')}" aria-label="חיפוש"></label>
-          <button class="btn primary" id="addBtn" type="button">${ICON('plus', 17)} ${esc(e.single)} חדש</button>
+          <button class="btn primary" id="addBtn" type="button">${ICON('plus', 17)} ${esc(NEW(e))}</button>
         </div>
       </div>
       <div class="card flush"><div class="table-wrap" id="tbl"></div></div>`;
@@ -267,12 +263,11 @@
 
     const relSections = related(key, id).map(({ e: re, f, rows }) => {
       const cols = re.fields.filter(x => x.key !== f.key);
-      const relDef = S.relations.find(x => (x.a === key && x.b === re.key) || (x.b === key && x.a === re.key) || (re.relTable && x.key === 'r_owns'));
       const name = re.key === key ? 'עובדים כפופים' : re.label;
       return `<div class="card flush">
         <div class="card-head" style="padding:20px 24px 6px">${tile(re, 18)}<h2>${esc(name)}</h2>
           <span class="count-pill">${rows.length}</span>
-          ${relDef ? `<span class="sub" style="margin-inline-start:auto">קשר "${esc(relDef.label)}"</span>` : ''}</div>
+</div>
         ${rows.length ? `<div class="table-wrap"><table class="data"><thead><tr>
           ${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}${(re.computed || []).map(c => `<th>${esc(c.label)}</th>`).join('')}
           </tr></thead><tbody>
@@ -294,7 +289,7 @@
           <button class="btn danger" id="dlBtn" type="button">${ICON('trash', 16)} מחיקה</button>
         </div>
       </div>
-      <div class="card"><div class="card-head"><h2>תכונות</h2><span class="sub">Attributes</span></div>
+      <div class="card"><div class="card-head"><h2>פרטים</h2></div>
         <div class="attr-grid">
           ${e.fields.map(f => `<div class="attr"><div class="k">${esc(f.label)}</div><div class="v">${fmt(f, r) || '<span class="muted">—</span>'}</div></div>`).join('')}
           ${(e.computed || []).map(c => `<div class="attr"><div class="k">${esc(c.label)} · מחושב</div><div class="v">${fmtComputed(c, r)}</div></div>`).join('')}
@@ -316,7 +311,7 @@
     }
     if (!confirm(`למחוק את "${titleOf(key, r)}"?`)) return false;
     db[key] = db[key].filter(x => pkOf(e, x) !== String(id));
-    save(); toast(`${e.single} נמחק`);
+    save(); toast(DELETED(e));
     if (!location.hash.includes(`/e/${key}/`)) route();
     return true;
   }
@@ -506,7 +501,7 @@
   function openForm(key, rec) {
     const e = ent(key);
     formCtx = { key, rec, touched: new Set(), submitted: false };
-    $('#dlgTitle').textContent = rec ? `עריכת ${e.single}` : `${e.single} חדש`;
+    $('#dlgTitle').textContent = rec ? `עריכת ${e.single}` : NEW(e);
     $('#dlgTile').style.setProperty('--c', e.color);
     $('#dlgTile').innerHTML = ICON(key, 20);
     $('#dlgBody').innerHTML = e.fields.map(f => inputFor(e, f, rec, !!rec)).join('');
@@ -578,7 +573,7 @@
     if (Object.keys(errs).length) return formFail();
     if (rec) Object.assign(rec, data); else db[key].push(data);
     save(); closeForm();
-    toast(rec ? 'השינויים נשמרו' : `${e.single} נוסף בהצלחה`);
+    toast(rec ? 'השינויים נשמרו' : ADDED(e));
     route(true);
   }
   function formFail() {

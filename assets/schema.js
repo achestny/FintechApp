@@ -6,7 +6,7 @@ window.SCHEMA = {
   entities: [
     {
       key: 'customers', label: 'לקוחות', single: 'לקוח', en: 'Customer', color: '#3b82f6',
-      desc: 'הלקוחות של הבנק. כל לקוח משויך לסניף אחד, יכול להחזיק בכמה חשבונות ולקחת הלוואות.',
+      desc: 'לקוחות הבנק. כל לקוח משויך לסניף, ויכול להחזיק כמה חשבונות ולקחת הלוואות.',
       pk: ['customerId'],
       fields: [
         { key: 'customerId', label: 'תעודת זהות', type: 'text', required: true, pattern: '^\\d{9}$', idCheck: true, hint: '9 ספרות, כולל ספרת ביקורת' },
@@ -20,7 +20,7 @@ window.SCHEMA = {
     },
     {
       key: 'accounts', label: 'חשבונות', single: 'חשבון', en: 'Account', color: '#14b8a6',
-      desc: 'חשבונות הבנק. חשבון מתנהל בסניף אחד, מנוהל במטבע אחד (שקל, דולר או אירו) ויכול להיות משותף לכמה לקוחות. היתרה מחושבת מהתנועות.',
+      desc: 'חשבונות הבנק. כל חשבון מתנהל בסניף אחד ובמטבע אחד (שקל, דולר או אירו), ויכול להיות משותף לכמה לקוחות. היתרה מחושבת מהתנועות.',
       pk: ['accountNo'],
       fields: [
         { key: 'accountNo', label: 'מספר חשבון', type: 'number', required: true, auto: true },
@@ -40,9 +40,9 @@ window.SCHEMA = {
       title: r => `חשבון ${r.accountNo} (${r.type}${r.currency && r.currency !== 'ILS' ? ' · ' + r.currency : ''})`
     },
     {
-      key: 'ownerships', label: 'בעלות בחשבונות', single: 'בעלות', en: 'Ownership', color: '#8b5cf6',
+      key: 'ownerships', fem: true, label: 'בעלות בחשבונות', single: 'בעלות', en: 'Ownership', color: '#8b5cf6',
       relTable: true,
-      desc: 'טבלת קשר בין לקוחות לחשבונות: לקוח יכול להחזיק כמה חשבונות, וחשבון יכול להיות משותף לכמה לקוחות. מפתח ראשי משולב.',
+      desc: 'מי מחזיק באיזה חשבון: לקוח יכול להחזיק כמה חשבונות, וחשבון יכול להיות משותף לכמה לקוחות.',
       pk: ['customerId', 'accountNo'],
       fields: [
         { key: 'customerId', label: 'לקוח', type: 'ref', ref: 'customers', required: true },
@@ -56,8 +56,8 @@ window.SCHEMA = {
       }
     },
     {
-      key: 'transactions', label: 'תנועות', single: 'תנועה', en: 'Transaction', color: '#f59e0b',
-      desc: 'הפקדות ומשיכות. כל תנועה שייכת לחשבון אחד; בחשבון תנועות רבות.',
+      key: 'transactions', fem: true, label: 'תנועות', single: 'תנועה', en: 'Transaction', color: '#f59e0b',
+      desc: 'הפקדות ומשיכות בחשבונות הבנק.',
       pk: ['txnId'],
       fields: [
         { key: 'txnId', label: 'מזהה תנועה', type: 'number', required: true, auto: true },
@@ -71,8 +71,8 @@ window.SCHEMA = {
       title: r => `תנועה ${r.txnId}`
     },
     {
-      key: 'loans', label: 'הלוואות', single: 'הלוואה', en: 'Loan', color: '#f43f5e',
-      desc: 'הלוואות שהבנק העניק. כל הלוואה שייכת ללקוח אחד; ללקוח יכולות להיות כמה הלוואות.',
+      key: 'loans', fem: true, label: 'הלוואות', single: 'הלוואה', en: 'Loan', color: '#f43f5e',
+      desc: 'הלוואות שהבנק העניק ללקוחותיו.',
       pk: ['loanId'],
       fields: [
         { key: 'loanId', label: 'מספר הלוואה', type: 'number', required: true, auto: true },
@@ -87,7 +87,7 @@ window.SCHEMA = {
     },
     {
       key: 'branches', label: 'סניפים', single: 'סניף', en: 'Branch', color: '#6366f1',
-      desc: 'סניפי הבנק. סניף מעסיק עובדים, משרת לקוחות ומנהל חשבונות.',
+      desc: 'סניפי הבנק. בכל סניף מועסקים עובדים, ומנוהלים בו לקוחות וחשבונות.',
       pk: ['branchId'],
       fields: [
         { key: 'branchId', label: 'קוד סניף', type: 'text', required: true, pattern: '^\\d{3}$', hint: '3 ספרות' },
@@ -99,7 +99,7 @@ window.SCHEMA = {
     },
     {
       key: 'employees', label: 'עובדים', single: 'עובד', en: 'Employee', color: '#64748b',
-      desc: 'עובדי הבנק. כל עובד מועסק בסניף, ולכל עובד (מלבד המנהל הבכיר) יש מנהל שהוא עובד בעצמו – קשר רקורסיבי.',
+      desc: 'עובדי הבנק, הסניף שבו כל אחד מועסק והמנהל הישיר שלו.',
       pk: ['empId'],
       fields: [
         { key: 'empId', label: 'מספר עובד', type: 'number', required: true, auto: true },
@@ -118,15 +118,15 @@ window.SCHEMA = {
     { key: 'r_owns', label: 'מחזיק', a: 'customers', b: 'accounts', pA: '(1,M)', pB: '(1,N)', part: ['לקוח מחזיק לפחות חשבון אחד ועד M חשבונות', 'חשבון מוחזק בידי לקוח אחד לפחות ועד N לקוחות'], card: 'N:M', degree: 'בינארי',
       impl: 'טבלת קשר נפרדת "בעלות בחשבונות" עם מפתח ראשי משולב (ת.ז + מספר חשבון)', attrs: ['סוג בעלות', 'תאריך צירוף'],
       text: 'לקוח מחזיק בחשבונות רבים, וחשבון יכול להיות משותף לכמה לקוחות' },
-    { key: 'r_cust_branch', label: 'משויך ל', a: 'customers', b: 'branches', pA: '(1,1)', pB: '(0,N)', part: ['כל לקוח משויך לסניף אחד בדיוק', 'בסניף 0 עד N לקוחות'], card: '1:N', degree: 'בינארי',
+    { key: 'r_cust_branch', label: 'משויך', a: 'customers', b: 'branches', pA: '(1,1)', pB: '(0,N)', part: ['כל לקוח משויך לסניף אחד בדיוק', 'בסניף 0 עד N לקוחות'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "קוד סניף" בטבלת לקוחות (צד ה"רבים")', text: 'כל לקוח משויך לסניף אחד; בסניף לקוחות רבים' },
-    { key: 'r_acc_branch', label: 'מתנהל ב', a: 'accounts', b: 'branches', pA: '(1,1)', pB: '(0,N)', part: ['כל חשבון מתנהל בסניף אחד בדיוק', 'בסניף 0 עד N חשבונות'], card: '1:N', degree: 'בינארי',
+    { key: 'r_acc_branch', label: 'מתנהל', a: 'accounts', b: 'branches', pA: '(1,1)', pB: '(0,N)', part: ['כל חשבון מתנהל בסניף אחד בדיוק', 'בסניף 0 עד N חשבונות'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "קוד סניף" בטבלת חשבונות', text: 'כל חשבון מתנהל בסניף אחד; בסניף חשבונות רבים' },
     { key: 'r_txn', label: 'כולל', a: 'accounts', b: 'transactions', pA: '(0,N)', pB: '(1,1)', part: ['בחשבון 0 עד N תנועות', 'כל תנועה שייכת לחשבון אחד בדיוק'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "מספר חשבון" בטבלת תנועות', text: 'חשבון כולל תנועות רבות; כל תנועה שייכת לחשבון אחד' },
     { key: 'r_loan', label: 'לוקח', a: 'customers', b: 'loans', pA: '(0,N)', pB: '(1,1)', part: ['ללקוח 0 עד N הלוואות', 'כל הלוואה שייכת ללקוח אחד בדיוק'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "ת.ז" בטבלת הלוואות', text: 'לקוח יכול לקחת הלוואות רבות; כל הלוואה שייכת ללקוח אחד' },
-    { key: 'r_emp_branch', label: 'מועסק ב', a: 'employees', b: 'branches', pA: '(1,1)', pB: '(1,N)', part: ['כל עובד מועסק בסניף אחד בדיוק', 'בסניף עובד אחד לפחות ועד N עובדים'], card: '1:N', degree: 'בינארי',
+    { key: 'r_emp_branch', label: 'מועסק', a: 'employees', b: 'branches', pA: '(1,1)', pB: '(1,N)', part: ['כל עובד מועסק בסניף אחד בדיוק', 'בסניף עובד אחד לפחות ועד N עובדים'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "קוד סניף" בטבלת עובדים', text: 'עובד מועסק בסניף אחד; בסניף עובדים רבים' },
     { key: 'r_manages', label: 'מנהל של', a: 'employees', b: 'employees', pA: '(0,N)', pB: '(0,1)', part: ['בתפקיד מנהל: מנהל 0 עד N עובדים', 'בתפקיד מנוהל: יש לו 0 או 1 מנהל ישיר'], card: '1:N', degree: 'אונארי (רקורסיבי)',
       roles: ['מנהל', 'מנוהל'],
