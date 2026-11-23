@@ -304,12 +304,6 @@ table.rels td{white-space:normal;vertical-align:top}
 
 .field.valid input,.field.valid select{border-color:#86efac}
 .field.valid label::after{content:" ✓";color:#16a34a;font-weight:700}
-.rules{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-.rules>div{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
-.rules b{font-size:14.5px} .rules span{font-size:13px;color:var(--muted)}
-.kpi.hero.ok{background:linear-gradient(135deg,#047857,#16a34a);box-shadow:0 12px 30px -12px rgba(22,163,74,.55)}
-.nav-item[data-badge="bad"] .nav-count{background:#e11d48;color:#fff}
-.empty svg{color:#16a34a}
 .upd-bar{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:80;background:#0f172a;color:#fff;border-radius:12px;padding:8px 10px 8px 16px;display:flex;gap:12px;align-items:center;box-shadow:var(--sh-2);font-size:14px;max-width:94vw}
 @media (max-width:900px){
   dialog{width:100vw;max-width:100vw;margin:auto 0 0;border-radius:20px 20px 0 0;max-height:92dvh}

@@ -75,7 +75,6 @@
   /* ---------- Shell ---------- */
   function shell(active, crumbs) {
     const counts = {}; S.entities.forEach(e => { counts[e.key] = db[e.key].length; });
-    const iss = scanAll(); counts.check = iss.filter(i => i.sev === 'error').length || null;
     renderSidebar(active, '', counts);
     $('#crumbs').innerHTML = crumbs.map((c, i) => i < crumbs.length - 1
       ? `<a href="${c[1]}">${esc(c[0])}</a>${ICON('back', 14)}` : `<b>${esc(c[0])}</b>`).join('');
@@ -317,8 +316,7 @@
   }
 
   /* =====================================================================
-     מנגנון בדיקת תקינות – משמש גם את הטופס (בזמן הקלדה ובשמירה)
-     וגם את דוח "בדיקת תקינות הנתונים" שסורק את כל מסד הנתונים
+     מנגנון בדיקת תקינות הנתונים בטופס – בזמן הקלדה ובשמירה
      ===================================================================== */
   const TODAY = () => new Date().toISOString().slice(0, 10);
   function validIsraeliId(id) {
@@ -390,81 +388,6 @@
     if (key === 'accounts' && rec && rec.currency !== data.currency &&
         db.transactions.some(t => String(t.accountNo) === String(rec.accountNo)))
       err('currency', 'לא ניתן לשנות מטבע לחשבון שיש בו תנועות');
-  }
-
-  /** סריקת כל מסד הנתונים – מחזיר רשימת ממצאים */
-  function scanAll() {
-    const issues = [];
-    const add = (sev, key, r, field, msg) => issues.push({ sev, key, r, field, msg });
-    S.entities.forEach(e => {
-      const seen = new Map();
-      db[e.key].forEach(r => {
-        const k = pkOf(e, r);
-        if (seen.has(k)) add('error', e.key, r, e.pk[0], 'מפתח ראשי כפול');
-        seen.set(k, true);
-        const errs = validateRecord(e.key, r, r);
-        Object.keys(errs).filter(f => f !== '_form').forEach(f => add('error', e.key, r, f, errs[f]));
-      });
-    });
-    // כללי השתתפות בקשרים (אזהרות)
-    db.accounts.forEach(a => {
-      if (!db.ownerships.some(o => String(o.accountNo) === String(a.accountNo))) add('warn', 'accounts', a, null, 'חשבון ללא בעלים (אין רשומה בטבלת "בעלות בחשבונות")');
-      if (a.status === 'סגור' && balanceOf(a) !== 0) add('warn', 'accounts', a, null, `חשבון סגור עם יתרה של ${money(balanceOf(a), curOf(a))}`);
-      if (a.type === 'עו"ש' && balanceOf(a) < 0) add('warn', 'accounts', a, null, `חשבון במשיכת יתר (${money(balanceOf(a), curOf(a))})`);
-    });
-    db.customers.forEach(c => {
-      if (!db.ownerships.some(o => String(o.customerId) === String(c.customerId))) add('warn', 'customers', c, null, 'לקוח ללא חשבון');
-    });
-    db.branches.forEach(b => {
-      if (!db.employees.some(x => String(x.branchId) === String(b.branchId))) add('warn', 'branches', b, null, 'סניף ללא עובדים');
-    });
-    return issues;
-  }
-  window.__scanAll = () => scanAll();
-
-  /* ---------- Integrity report ---------- */
-  function viewCheck() {
-    shell('check', [['לוח בקרה', '#/'], ['בדיקת תקינות', '#/check']]);
-    const issues = scanAll();
-    const errors = issues.filter(i => i.sev === 'error'), warns = issues.filter(i => i.sev === 'warn');
-    const records = S.entities.reduce((s, e) => s + db[e.key].length, 0);
-    const fieldOf = (key, f) => (f ? (ent(key).fields.find(x => x.key === f) || {}).label || f : '—');
-    const rows = issues.map(i => {
-      const e = ent(i.key);
-      return `<tr data-go="${href(i.key, i.r)}">
-        <td><span class="tag ${i.sev === 'error' ? 'bad' : 'mid'}">${i.sev === 'error' ? 'שגיאה' : 'אזהרה'}</span></td>
-        <td><span class="chip" style="--c:${e.color}">${esc(e.single)}</span></td>
-        <td style="font-weight:600">${esc(titleOf(i.key, i.r))}</td>
-        <td class="muted">${esc(fieldOf(i.key, i.field))}</td>
-        <td style="white-space:normal">${esc(i.msg)}</td>
-        <td class="actions" style="opacity:1"><button class="btn sm" data-fix="${i.key}" data-pk="${esc(pkOf(e, i.r))}" type="button">${ICON('edit', 14)} תיקון</button></td></tr>`;
-    }).join('');
-    $('#view').innerHTML = `
-      <div class="page-head"><div>
-        <div class="eyebrow" style="--c:#16a34a"><span class="tile" style="--c:#16a34a">${ICON('check', 16)}</span>איכות נתונים</div>
-        <h1>בדיקת תקינות הנתונים</h1>
-        <p>סריקה של כל הרשומות במערכת: שדות חובה, פורמטים (ת.ז עם ספרת ביקורת, טלפון, דוא"ל, תאריכים), טווחי ערכים, מפתחות ראשיים כפולים, מפתחות זרים יתומים וכללים עסקיים.</p></div>
-        <div class="actions"><button class="btn" id="rescan" type="button">${ICON('check', 16)} הרצת בדיקה מחדש</button></div></div>
-      <div class="kpis">
-        <div class="kpi ${issues.length ? '' : 'hero ok'}"><div class="top"><span class="lbl">סטטוס</span><span class="tile" style="--c:${errors.length ? '#e11d48' : warns.length ? '#d97706' : '#16a34a'}">${ICON('check', 20)}</span></div>
-          <div class="val" style="font-size:24px">${errors.length ? 'נמצאו שגיאות' : warns.length ? 'תקין, עם אזהרות' : 'הנתונים תקינים'}</div>
-          <div class="foot">נבדק ב-${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div></div>
-        <div class="kpi"><div class="top"><span class="lbl">רשומות שנבדקו</span></div><div class="val">${records}</div><div class="foot">ב-${S.entities.length} טבלאות</div></div>
-        <div class="kpi"><div class="top"><span class="lbl">שגיאות</span></div><div class="val ${errors.length ? 'neg' : ''}">${errors.length}</div><div class="foot">חובה לתקן</div></div>
-        <div class="kpi"><div class="top"><span class="lbl">אזהרות</span></div><div class="val" style="${warns.length ? 'color:#b45309' : ''}">${warns.length}</div><div class="foot">מומלץ לבדוק</div></div>
-      </div>
-      <div class="card flush">${issues.length ? `<div class="table-wrap"><table class="data">
-        <thead><tr><th>חומרה</th><th>ישות</th><th>רשומה</th><th>שדה</th><th>תיאור</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
-        : `<div class="empty">${ICON('check', 28)}<div style="margin-top:8px;font-weight:600;color:var(--ink)">לא נמצאו בעיות</div>כל ${records} הרשומות עומדות בכל כללי התקינות.</div>`}</div>
-      <div class="card"><div class="card-head"><h2>הכללים שנבדקים</h2></div>
-        <div class="rules">
-          <div><b>שלמות ישות</b><span>שדות חובה מלאים, מפתח ראשי ייחודי (כולל מפתח משולב)</span></div>
-          <div><b>שלמות התייחסות</b><span>כל מפתח זר מצביע על רשומה קיימת; אין מחיקה של רשומה שיש לה רשומות תלויות</span></div>
-          <div><b>תחום ערכים</b><span>ת.ז עם ספרת ביקורת, טלפון, דוא"ל, תאריכים לא עתידיים, ריבית 0–30%, מספרים שלמים</span></div>
-          <div><b>כללים עסקיים</b><span>אין תנועות בחשבון סגור, אין משיכת יתר מחוץ לעו"ש, אין מעגל ניהול, תנועה/צירוף לא לפני פתיחת החשבון</span></div>
-          <div><b>השתתפות בקשרים</b><span>לכל חשבון יש בעלים, לכל לקוח יש חשבון, לכל סניף יש עובדים (אזהרה)</span></div>
-        </div></div>`;
-    $('#rescan').addEventListener('click', () => { route(true); toast('הבדיקה הושלמה'); });
   }
 
   /* ---------- Form ---------- */
@@ -596,7 +519,6 @@
     const parts = decodeURIComponent(location.hash.replace(/^#\/?/, '')).split('/');
     if (parts[0] === 'e' && parts[1] && parts[2]) viewDetail(parts[1], parts.slice(2).join('/'));
     else if (parts[0] === 'e' && parts[1]) viewList(parts[1]);
-    else if (parts[0] === 'check') viewCheck();
     else viewHome();
     if (keepScroll !== true) window.scrollTo(0, 0);
   }
@@ -617,10 +539,6 @@
   $('#dlgBody').addEventListener('scroll', updateMoreHint, { passive: true });
   $('#dlgCancel').addEventListener('click', closeForm);
   $('#dlg').addEventListener('close', () => { formCtx = null; });
-  document.addEventListener('click', ev => {
-    const fx = ev.target.closest('[data-fix]');
-    if (fx) { ev.stopPropagation(); const r = findBy(fx.dataset.fix, fx.dataset.pk); if (r) openForm(fx.dataset.fix, r); }
-  }, true);
   window.addEventListener('hashchange', route);
 
   $('#menuBtn').innerHTML = ICON('menu', 20);
