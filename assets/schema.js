@@ -9,7 +9,7 @@ window.SCHEMA = {
       desc: 'לקוחות הבנק. כל לקוח משויך לסניף, ויכול להחזיק כמה חשבונות ולקחת הלוואות.',
       pk: ['customerId'],
       fields: [
-        { key: 'customerId', label: 'תעודת זהות', type: 'text', required: true, pattern: '^\\d{9}$', idCheck: true, hint: '9 ספרות, כולל ספרת ביקורת' },
+        { key: 'customerId', label: 'תעודת זהות', type: 'text', required: true, pattern: '^\\d{9}$', digits9: true, hint: '9 ספרות' },
         { key: 'fullName', label: 'שם מלא', type: 'text', required: true },
         { key: 'phone', label: 'טלפון', type: 'tel', required: true, pattern: '^0\\d{1,2}-?\\d{7}$', hint: 'לדוגמה 050-1234567' },
         { key: 'email', label: 'דוא"ל', type: 'email' },

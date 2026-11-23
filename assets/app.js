@@ -319,13 +319,7 @@
      מנגנון בדיקת תקינות הנתונים בטופס – בזמן הקלדה ובשמירה
      ===================================================================== */
   const TODAY = () => new Date().toISOString().slice(0, 10);
-  function validIsraeliId(id) {
-    const s = String(id);
-    if (!/^\d{9}$/.test(s)) return false;
-    let sum = 0;
-    for (let i = 0; i < 9; i++) { const d = Number(s[i]) * ((i % 2) + 1); sum += d > 9 ? d - 9 : d; }
-    return sum % 10 === 0;
-  }
+
   const isDate = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v + 'T00:00:00'));
 
   /** בודק רשומה אחת. מחזיר אובייקט { שדה: הודעה } ; המפתח _form = שגיאה כללית */
@@ -342,7 +336,6 @@
         if (f.max != null && v > f.max) return err(f.key, `הערך המקסימלי הוא ${f.max}`);
       }
       if (f.pattern && !new RegExp(f.pattern).test(String(v))) return err(f.key, `פורמט לא תקין${f.hint ? ` (${f.hint})` : ''}`);
-      if (f.idCheck && !validIsraeliId(v)) return err(f.key, 'מספר זהות לא תקין (ספרת ביקורת שגויה)');
       if (f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return err(f.key, 'כתובת דוא"ל לא תקינה');
       if (f.type === 'date') {
         if (!isDate(v)) return err(f.key, 'תאריך לא תקין');
@@ -436,14 +429,21 @@
     else if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(',', '.');
     return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
   }
+  /* ניקוי קלט שהודבק: תווי כיווניות בלתי נראים (למשל מוואטסאפ), רווחים קשיחים וכו' */
+  const INVISIBLE = /[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
+  function cleanText(f, raw) {
+    let v = String(raw || '').replace(INVISIBLE, '').replace(/\u00a0/g, ' ').trim();
+    if (f.digits9) v = v.replace(/[\s\-.]/g, '');      // ת.ז: מסירים רווחים/מקפים שהודבקו
+    if (f.type === 'tel') v = v.replace(/\s/g, '');
+    return v;
+  }
   function readValue(f, form) {
     const el = form.elements[f.key];
     if (!el) return '';
     if (el.disabled && formCtx.rec) return formCtx.rec[f.key];
-    const v = String(el.value || '').trim();
+    const v = cleanText(f, el.value);
     if (v === '') return '';
     if (NUMERIC.includes(f.type)) return parseNum(v, f.type);
-    if (f.type === 'tel') return v.replace(/\s/g, '');
     if (f.type === 'ref') {
       const te = ent(f.ref), tf = te.fields.find(x => x.key === te.pk[0]);
       return tf.type === 'number' ? Number(v) : v;
@@ -527,7 +527,14 @@
   $('#dlgSave').addEventListener('click', ev => { ev.preventDefault(); submitForm(); });  // גיבוי ל-Safari/iOS
   $('#dlgForm').addEventListener('input', liveValidate);
   $('#dlgForm').addEventListener('change', liveValidate);
-  $('#dlgForm').addEventListener('focusout', ev => { if (ev.target.matches('input,select')) liveValidate(ev); });
+  $('#dlgForm').addEventListener('focusout', ev => {
+    if (!ev.target.matches('input,select')) return;
+    if (formCtx && ev.target.matches('input[type="text"],input[type="tel"],input[type="email"]') && !ev.target.readOnly) {
+      const f = ent(formCtx.key).fields.find(x => x.key === ev.target.name);
+      if (f && !NUMERIC.includes(f.type)) { const c = cleanText(f, ev.target.value); if (c !== ev.target.value) ev.target.value = c; }
+    }
+    liveValidate(ev);
+  });
   $('#dlgBody').addEventListener('scroll', updateMoreHint, { passive: true });
   $('#dlgCancel').addEventListener('click', closeForm);
   $('#dlg').addEventListener('close', () => { formCtx = null; });
