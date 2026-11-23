@@ -72,14 +72,14 @@
       const lx = A.x - EW / 2, by = A.y + EH / 2;
       P.lines.push(`<path class="ln" data-n="E:${r.a} ${n}" d="M ${lx} ${A.y} C ${lx - 95} ${A.y} ${p.x - DW - 95} ${p.y} ${p.x - DW} ${p.y}"/>`);
       P.lines.push(`<line class="ln" data-n="E:${r.a} ${n}" x1="${A.x}" y1="${by}" x2="${p.x}" y2="${p.y - DH}"/>`);
-      P.labels.push(`<g data-n="E:${r.a} ${n}">${badge(lx - 34, A.y - 12, r.pA)}${badge(A.x + 34, by + 26, r.pB)}
+      P.labels.push(`<g data-n="E:${r.a} ${n}">${badge(lx - 34, A.y - 12, r.pB)}${badge(A.x + 34, by + 26, r.pA)}
         <text class="role" x="${lx - 62}" y="${(A.y + p.y) / 2 + 4}" text-anchor="middle" direction="rtl">${esc(r.roles[0])}</text>
         <text class="role" x="${A.x + 40}" y="${(by + p.y - DH) / 2 + 22}" text-anchor="start" direction="ltr">${esc(r.roles[1])}</text></g>`);
     } else {
       P.lines.push(`<line class="ln" data-n="E:${r.a} ${n}" x1="${A.x}" y1="${A.y}" x2="${p.x}" y2="${p.y}"/>`);
       P.lines.push(`<line class="ln" data-n="E:${r.b} ${n}" x1="${B.x}" y1="${B.y}" x2="${p.x}" y2="${p.y}"/>`);
-      P.labels.push(`<g data-n="E:${r.a} ${n}">${cardLabel(A.x, A.y, p.x, p.y, r.pA)}</g>`);
-      P.labels.push(`<g data-n="E:${r.b} ${n}">${cardLabel(B.x, B.y, p.x, p.y, r.pB)}</g>`);
+      P.labels.push(`<g data-n="E:${r.a} ${n}">${cardLabel(A.x, A.y, p.x, p.y, r.pB)}</g>`);
+      P.labels.push(`<g data-n="E:${r.b} ${n}">${cardLabel(B.x, B.y, p.x, p.y, r.pA)}</g>`);
     }
     (p.attrs || []).forEach(([label, ax, ay]) => {
       P.lines.push(`<line class="ln attr-ln" data-n="A:${r.key}" x1="${p.x}" y1="${p.y}" x2="${ax}" y2="${ay}"/>`);
@@ -103,7 +103,7 @@
     <span class="item"><svg width="42" height="26"><polygon points="21,2 40,13 21,24 2,13" fill="${C.relF}" stroke="${C.relS}" stroke-width="2"/></svg>קשר</span>
     <span class="item"><svg width="46" height="24"><ellipse cx="23" cy="12" rx="21" ry="10" fill="${C.atF}" stroke="${C.atS}" stroke-width="1.6"/></svg>תכונה</span>
     <span class="item"><svg width="46" height="24"><ellipse cx="23" cy="12" rx="21" ry="10" fill="${C.atF}" stroke="${C.atS}" stroke-width="1.6"/><text x="23" y="16" text-anchor="middle" font-size="10" font-weight="700" text-decoration="underline">מזהה</text></svg>מפתח ראשי</span>
-    <span class="item"><b class="ltr" style="color:#a2332a">(min,max)</b>&nbsp;השתתפות הישות בקשר – למשל <b class="ltr" style="color:#a2332a">(1,N)</b> = לפחות אחד ועד N</span>
+    <span class="item"><b class="ltr" style="color:#a2332a">(min,max)</b>&nbsp;כמה מופעים של הישות שלידה מקושרים לכל מופע בצד השני – למשל <b class="ltr" style="color:#a2332a">(0,N)</b> ליד הלוואה = ללקוח 0 עד N הלוואות</span>
 `;
 
   /* ---------- הדגשה ---------- */
@@ -152,12 +152,12 @@
   const chip = k => { const e = ent(k); return `<span class="chip" style="--c:${e.color}">${esc(e.single)}</span>`; };
   $('relCount').textContent = `${S.relations.length} קשרים`;
   $('relTable').innerHTML = `
-    <thead><tr><th>קשר</th><th>ישויות</th><th>עוצמה</th><th>דרגה</th><th>השתתפות (min,max)</th><th>מימוש בטבלאות</th></tr></thead>
+    <thead><tr><th>קשר</th><th>ישויות</th><th>עוצמה</th><th>דרגה</th><th>(min,max) ליד כל ישות</th><th>מימוש בטבלאות</th></tr></thead>
     <tbody>${S.relations.map(r => `<tr>
       <td><b>${esc(r.label)}</b>${r.attrs ? `<div class="muted" style="font-size:12.5px;margin-top:2px">תכונות: ${r.attrs.map(esc).join(', ')}</div>` : ''}</td>
       <td><span class="ent-pair">${chip(r.a)}${r.a === r.b ? '<span class="muted">↺</span>' : ''}${r.a === r.b ? '' : chip(r.b)}</span></td>
       <td><span class="rel-type">${r.card}</span></td><td>${esc(r.degree)}</td>
-      <td style="white-space:normal"><div>${esc(r.part[0])} <span class="rel-type mmc">${r.pA}</span></div><div style="margin-top:4px">${esc(r.part[1])} <span class="rel-type mmc">${r.pB}</span></div></td>
+      <td style="white-space:normal"><div>ליד ${esc(ent(r.b).single)} <span class="rel-type mmc">${r.pA}</span> – ${esc(r.part[0])}</div><div style="margin-top:4px">ליד ${esc(ent(r.a).single)} <span class="rel-type mmc">${r.pB}</span> – ${esc(r.part[1])}</div></td>
       <td class="muted">${esc(r.impl)}</td></tr>`).join('')}</tbody>`;
 
   /* ---------- סכמה יחסית ---------- */
