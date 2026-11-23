@@ -513,3 +513,18 @@ a.kpi.hero:hover{transform:translateY(-3px);border-color:transparent}
 .page-head.with-art .ph-art{height:132px;margin:-6px 0 -8px}
 @media (max-width:1100px){.page-head.with-art{grid-template-columns:1fr 150px}.page-head.with-art .ph-art{height:100px}}
 @media (max-width:560px){.page-head.with-art{grid-template-columns:1fr 96px}.page-head.with-art .ph-art{height:76px}.welcome.has-photo{min-height:0}}
+/* v29: הבאנר עם צילום – יותר מקום לנוף, כפתורים קומפקטיים */
+.welcome.has-photo{min-height:340px;align-content:space-between;padding:30px 32px 26px}
+.welcome.has-photo .wl-photo{object-position:center 88%}
+.welcome.has-photo .wl-photo-wrap::after{
+  background:linear-gradient(270deg,rgba(11,23,48,.85) 0%,rgba(11,23,48,.55) 32%,rgba(11,23,48,.08) 62%,rgba(11,23,48,0) 100%),
+             linear-gradient(0deg,rgba(11,23,48,.55) 0%,rgba(11,23,48,0) 32%)}
+.welcome.has-photo .wl-text{text-shadow:0 1px 12px rgba(0,0,0,.35)}
+.welcome.has-photo .qa{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-start}
+.welcome.has-photo .qa-btn{flex-direction:row;align-items:center;gap:10px;min-width:0;padding:8px 16px 8px 10px;border-radius:999px;
+  background:rgba(15,23,42,.38);border-color:rgba(255,255,255,.3);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.welcome.has-photo .qa-btn:hover{background:rgba(15,23,42,.55)}
+.welcome.has-photo .qa-btn .tile{width:30px;height:30px;border-radius:999px}
+@media (max-width:560px){.welcome.has-photo{min-height:300px;padding:22px 18px 18px}
+  .welcome.has-photo .qa{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .welcome.has-photo .qa-btn{padding:7px 10px 7px 8px;font-size:13px}}
