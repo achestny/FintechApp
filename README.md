@@ -30,6 +30,7 @@
 - `assets/erd.js` – ציור התרשים
 - `assets/shell.js` – תפריט, אייקונים, מיון טבלאות ובדיקת עדכוני גרסה
 - `assets/fx.js` – שערי חליפין
+- `assets/illustrations.js` – איורים (SVG)
 - `assets/style.css` – עיצוב
 - `.nojekyll` – מבטל עיבוד Jekyll ב-GitHub Pages
 

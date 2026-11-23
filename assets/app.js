@@ -252,6 +252,7 @@
           <button class="qa-btn" type="button" id="qTx"><span class="tile" style="--c:${tx.color}">${ICON('plus', 20)}</span>תנועה חדשה</button>
           <button class="qa-btn" type="button" id="qXfer"><span class="tile" style="--c:#6366f1">${ICON('transactions', 20)}</span>העברה בין חשבונות</button>
         </div>
+        <div class="wl-illus">${window.ILLUS ? ILLUS.bank : ''}</div>
         <svg class="wl-art" viewBox="0 0 200 200" aria-hidden="true"><circle cx="160" cy="40" r="90" /><circle cx="40" cy="190" r="70" /></svg>
       </section>
 
@@ -319,7 +320,8 @@
     if (!e) return viewHome();
     shell(key, [['לוח בקרה', '#/'], [e.label, `#/e/${key}`]]);
     $('#view').innerHTML = `
-      <div class="page-head">
+      <div class="page-head with-art" style="--c:${e.color}">
+        <div class="ph-art">${window.ILLUS && ILLUS[key] || ''}</div>
         <div><h1>${esc(e.label)} <span class="count-pill" style="vertical-align:middle">${db[key].length}</span></h1>
           <p>${esc(e.desc)}</p></div>
         <div class="actions">
@@ -349,7 +351,7 @@
               <button class="icon-btn del" data-del="${esc(pkOf(e, r))}" title="מחיקה" aria-label="מחיקה">${ICON('trash', 16)}</button>
             </td></tr>`).join('')}
           </tbody></table>`
-        : `<div class="empty">${q ? 'לא נמצאו רשומות תואמות לחיפוש' : 'אין עדיין רשומות'}</div>`;
+        : `<div class="empty">${window.ILLUS ? ILLUS.empty : ''}<div class="empty-t">${q ? 'לא נמצאו רשומות תואמות לחיפוש' : 'אין עדיין רשומות'}</div>${q ? '' : `<div class="muted">לחצו על "${esc(NEW(e))}" כדי להוסיף</div>`}</div>`;
     };
     draw();
     $('#q').addEventListener('input', ev => { searchState[key] = ev.target.value; draw(); });

@@ -12,6 +12,7 @@
   $('menuBtn').innerHTML = ICON('menu', 20);
   $('today').textContent = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   $('erdTile').innerHTML = ICON('erd', 16);
+  if (window.ILLUS) $('erdArt').innerHTML = ILLUS.erd;
   $('zoomIn').innerHTML = ICON('zoomIn', 18); $('zoomOut').innerHTML = ICON('zoomOut', 18); $('zoomFit').innerHTML = ICON('fit', 18);
 
   /* ---------- פריסה ---------- */
