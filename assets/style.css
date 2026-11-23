@@ -485,3 +485,11 @@ table.data th.sortable:focus-visible{outline:2px solid #93b4f5;outline-offset:-2
 /* empty state */
 .empty .il-empty{width:170px;height:120px;margin:0 auto 6px}
 .empty-t{font-weight:600;color:var(--ink);margin-bottom:2px}
+
+/* KPI cards – all gradient, each in its own color (white text, AA contrast) */
+.kpi.hero.k-rose{background:linear-gradient(135deg,#881337 0%,#be123c 55%,#e11d48 100%);box-shadow:0 12px 30px -12px rgba(190,18,60,.55)}
+.kpi.hero.k-sky{background:linear-gradient(135deg,#0c4a6e 0%,#075985 55%,#0369a1 100%);box-shadow:0 12px 30px -12px rgba(3,105,161,.55)}
+.kpi.hero.k-teal{background:linear-gradient(135deg,#134e4a 0%,#115e59 55%,#0f766e 100%);box-shadow:0 12px 30px -12px rgba(15,118,110,.55)}
+.kpi.hero .muted{color:rgba(255,255,255,.72)!important}
+a.kpi.hero{transition:transform .18s,box-shadow .18s}
+a.kpi.hero:hover{transform:translateY(-3px);border-color:transparent}

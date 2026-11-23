@@ -261,11 +261,11 @@
           <div class="val">${money(totalBal)}</div>
           <div class="foot">${missing.length ? `${missing.length} חשבונות במט"ח לא הומרו – אין שער זמין` :
             `ב-${db.accounts.length} חשבונות${Object.keys(fxBal).length ? ' · כולל מט"ח לפי שער יציג' : ''}${usd != null ? ` · ≈ ${money(usd, 'USD')}` : ''}`}</div></div>
-        <a class="kpi" href="#/e/loans"><div class="top"><span class="lbl">תיק ההלוואות</span>${tile(Lo)}</div>
+        <a class="kpi hero k-rose" href="#/e/loans"><div class="top"><span class="lbl">תיק ההלוואות</span>${tile(Lo)}</div>
           <div class="val">${money(totalLoans)}</div><div class="foot">${db.loans.length} הלוואות · ריבית משוקללת ${avgRate.toFixed(1)}%</div></a>
-        <a class="kpi" href="#/e/customers"><div class="top"><span class="lbl">לקוחות</span>${tile(C)}</div>
+        <a class="kpi hero k-sky" href="#/e/customers"><div class="top"><span class="lbl">לקוחות</span>${tile(C)}</div>
           <div class="val">${db.customers.length}</div><div class="foot">ב-${db.branches.length} סניפים</div></a>
-        <a class="kpi" href="#/e/accounts"><div class="top"><span class="lbl">חשבונות פעילים</span>${tile(A)}</div>
+        <a class="kpi hero k-teal" href="#/e/accounts"><div class="top"><span class="lbl">חשבונות פעילים</span>${tile(A)}</div>
           <div class="val">${active}<span class="muted" style="font-size:18px;font-weight:500"> / ${db.accounts.length}</span></div>
           <div class="foot">${db.ownerships.length} קשרי בעלות</div></a>
       </div>
