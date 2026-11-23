@@ -1,4 +1,4 @@
-/* עמוד ה-ERD – תרשים בסימון Chen (מלבן = ישות, מעוין = קשר, אליפסה = תכונה) */
+/* עמוד ה-ERD – תרשים ישויות-קשרים (מלבן = ישות, מעוין = קשר, אליפסה = תכונה) */
 (function () {
   'use strict';
   const S = window.SCHEMA;
@@ -92,7 +92,7 @@
   });
 
   const canvas = $('canvas');
-  canvas.innerHTML = `<svg id="erd" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Heebo, Arial, sans-serif" role="img" aria-label="תרשים ישויות-קשרים בסימון Chen">
+  canvas.innerHTML = `<svg id="erd" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Heebo, Arial, sans-serif" role="img" aria-label="תרשים ישויות-קשרים">
     ${P.lines.join('')}${P.attrs.join('')}${P.shapes.join('')}${P.labels.join('')}</svg>`;
   const svgEl = $('erd');
 

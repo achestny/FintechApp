@@ -22,6 +22,7 @@
     zoomIn: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/>',
     zoomOut: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6"/>',
     fit: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    arrowLeft: '<path d="M19 12H5"/><path d="m11 18-6-6 6-6"/>',
     check: '<path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'
   };
@@ -70,11 +71,88 @@
       <div class="nav-sec">ראשי</div>
       ${link(`${base}#/`, 'home', 'לוח בקרה')}
       <div class="nav-sec">ישויות</div>
-      ${S.entities.map(e => link(`${base}#/e/${e.key}`, e.key, e.label, `style="--c:${e.color}"`)).join('')}
+      ${S.entities.map(e => link(`${base}#/e/${e.key}`, e.key, e.label, `style="--c:${e.color}"`) +
+        (e.key === 'transactions' ? `<a href="${base}#/transfer" class="nav-item nav-sub" style="--c:${e.color}"><span class="nav-ic">${ICON('arrowLeft', 15)}</span><span class="nav-lbl">העברה בין חשבונות</span></a>` : '')).join('')}
       <div class="nav-sec">מודל הנתונים</div>
       ${link('erd.html', 'erd', 'תרשים ERD')}
       <div class="side-foot">גרסה ${APP_VERSION} · נתונים פיקטיביים</div>`;
   };
+
+  /* טבלאות רספונסיביות: כל תא מקבל את שם העמודה שלו (data-label),
+     כדי שבמסך צר כל שורה תוצג ככרטיס עם תוויות */
+  function labelTables() {
+    document.querySelectorAll('table.data').forEach(t => {
+      const heads = [...t.querySelectorAll('thead th')].map(th => th.textContent.trim());
+      t.querySelectorAll('tbody tr').forEach(tr => [...tr.children].forEach((td, i) => {
+        if (!td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i] || '');
+      }));
+    });
+  }
+  /* ---------- מיון בכל טבלה: לחיצה על כותרת עמודה ----------
+     עולה ← יורד ← חזרה לסדר המקורי. המיון נשמר גם כשהטבלה מצוירת מחדש (למשל בחיפוש). */
+  const sortState = {};
+  const tableKey = t => location.pathname.split('/').pop() + location.hash.split('?')[0] + '|' +
+    ((t.closest('.card') && t.closest('.card').querySelector('h2') || {}).textContent || t.id || 'main');
+  function sortValue(td) {
+    if (!td) return '';
+    if (td.dataset.sort != null) return td.dataset.sort;
+    const t = td.textContent.replace(/[\u200e\u200f\u2066-\u2069]/g, '').trim();
+    let m = t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);                    // תאריך 14.2.2018
+    if (m) return Number(m[3] + m[2].padStart(2, '0') + m[1].padStart(2, '0'));
+    m = t.match(/^([+\-−])?\s*[₪$€£]?\s*([\d,]+(?:\.\d+)?)\s*[₪$€£%]?$/);   // מספר / סכום / אחוז
+    if (m) return (m[1] === '-' || m[1] === '−' ? -1 : 1) * Number(m[2].replace(/,/g, ''));
+    return t;
+  }
+  const collator = new Intl.Collator('he', { numeric: true, sensitivity: 'base' });
+  function applySort(t, st) {
+    const tb = t.tBodies[0]; if (!tb) return;
+    const rows = [...tb.rows];
+    rows.forEach((r, i) => { if (r.dataset.orig == null) r.dataset.orig = i; });
+    rows.sort((a, b) => {
+      if (!st || st.dir === 0) return a.dataset.orig - b.dataset.orig;
+      const x = sortValue(a.cells[st.col]), y = sortValue(b.cells[st.col]);
+      const r = (typeof x === 'number' && typeof y === 'number') ? x - y : collator.compare(String(x), String(y));
+      return (r || a.dataset.orig - b.dataset.orig) * st.dir;
+    });
+    rows.forEach(r => tb.appendChild(r));
+    [...t.tHead.rows[0].cells].forEach((th, i) => {
+      const d = st && st.col === i ? st.dir : 0;
+      th.classList.toggle('sort-asc', d === 1); th.classList.toggle('sort-desc', d === -1);
+      if (th.classList.contains('sortable')) th.setAttribute('aria-sort', d === 1 ? 'ascending' : d === -1 ? 'descending' : 'none');
+    });
+  }
+  function setupSorting() {
+    document.querySelectorAll('table.data').forEach(t => {
+      if (!t.tHead || !t.tBodies[0] || t.tBodies[0].rows.length < 2) return;
+      const head = t.tHead.rows[0];
+      [...head.cells].forEach(th => {
+        if (th.classList.contains('sortable') || !th.textContent.trim()) return;
+        th.classList.add('sortable'); th.tabIndex = 0; th.setAttribute('aria-sort', 'none');
+        th.title = 'מיון לפי עמודה זו';
+      });
+      if (t.dataset.sortBound !== '1') {
+        t.dataset.sortBound = '1';
+        const go = th => {
+          const key = tableKey(t), col = th.cellIndex, cur = sortState[key];
+          const dir = !cur || cur.col !== col ? 1 : cur.dir === 1 ? -1 : cur.dir === -1 ? 0 : 1;
+          sortState[key] = { col, dir }; applySort(t, sortState[key]);
+        };
+        t.tHead.addEventListener('click', ev => { const th = ev.target.closest('th.sortable'); if (th) go(th); });
+        t.tHead.addEventListener('keydown', ev => { const th = ev.target.closest('th.sortable'); if (th && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); go(th); } });
+      }
+      const st = sortState[tableKey(t)];
+      if (st && t.dataset.sortedRows !== String(t.tBodies[0].rows.length) + st.col + st.dir) {
+        t.dataset.sortedRows = String(t.tBodies[0].rows.length) + st.col + st.dir;
+        applySort(t, st);
+      }
+    });
+  }
+  window.__setupSorting = setupSorting;
+
+  let lt = 0;
+  new MutationObserver(() => { cancelAnimationFrame(lt); lt = requestAnimationFrame(() => { labelTables(); setupSorting(); }); })
+    .observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('DOMContentLoaded', () => { labelTables(); setupSorting(); });
 
   // תפריט נייד
   document.addEventListener('click', ev => {

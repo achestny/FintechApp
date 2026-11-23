@@ -2,13 +2,13 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="app-version" content="17">
+  <meta name="app-version" content="20">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ניהול לקוחות – מערכת בנקאית</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=17">
+  <link rel="stylesheet" href="assets/style.css?v=20">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%232563eb'/%3E%3Cpath d='M4 10l8-5 8 5M6 10v7M10 10v7M14 10v7M18 10v7M4 19h16' stroke='white' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -38,11 +38,29 @@
     </div>
   </form>
 </dialog>
+<dialog id="xferDlg">
+  <form id="xferForm" novalidate>
+    <div class="dlg-head"><span class="tile" style="--c:#f59e0b" id="xferTile"></span><h3 tabindex="-1" autofocus style="outline:none">העברה בין חשבונות</h3></div>
+    <div class="dlg-body" id="xferBody">
+      <div class="field full" data-field="from"><label for="x_from">מחשבון <span class="req">*</span></label><select id="x_from" name="from"></select><span class="err" data-err="from"></span></div>
+      <div class="field full" data-field="to"><label for="x_to">לחשבון <span class="req">*</span></label><select id="x_to" name="to"></select><span class="err" data-err="to"></span></div>
+      <div class="field" data-field="amount"><label for="x_amount">סכום <span id="x_cur" class="muted"></span> <span class="req">*</span></label><input id="x_amount" name="amount" type="text" inputmode="decimal" autocomplete="off" dir="ltr" style="text-align:right" placeholder="לדוגמה 1,000"><span class="err" data-err="amount"></span></div>
+      <div class="field" data-field="date"><label for="x_date">תאריך <span class="req">*</span></label><input id="x_date" name="date" type="date"><span class="err" data-err="date"></span></div>
+      <div class="field full" data-field="description"><label for="x_desc">תיאור</label><input id="x_desc" name="description" type="text" placeholder="לדוגמה: החזר הלוואה משפחתית"><span class="err" data-err="description"></span></div>
+      <div class="xfer-preview full" id="xferPreview"></div>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn primary" type="submit" id="xferSave">ביצוע העברה</button>
+      <button class="btn ghost" type="button" id="xferCancel">ביטול</button>
+      <span class="form-msg" id="xferMsg" role="alert"></span>
+    </div>
+  </form>
+</dialog>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="assets/schema.js?v=17"></script>
-<script src="assets/shell.js?v=17"></script>
-<script src="assets/fx.js?v=17"></script>
-<script src="assets/app.js?v=17"></script>
+<script src="assets/schema.js?v=20"></script>
+<script src="assets/shell.js?v=20"></script>
+<script src="assets/fx.js?v=20"></script>
+<script src="assets/app.js?v=20"></script>
 </body>
 </html>

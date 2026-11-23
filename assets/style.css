@@ -140,8 +140,9 @@ table.data td{padding:13px 18px;border-bottom:1px solid var(--line);white-space:
 table.data tbody tr:last-child td{border-bottom:0}
 table.data tbody tr[data-go]{cursor:pointer;transition:background .12s}
 table.data tbody tr[data-go]:hover{background:#f8fbff}
-table.data td.actions{width:1%;text-align:left;opacity:.55;transition:.15s}
-table.data tr:hover td.actions{opacity:1}
+table.data td.actions{width:1%;text-align:left}
+table.data td.actions .icon-btn{opacity:.55;transition:.15s}
+table.data tr:hover td.actions .icon-btn,table.data td.actions .icon-btn:focus-visible{opacity:1}
 .card table.data th:first-child,.card table.data td:first-child{padding-inline-start:24px}
 .cell-main{display:flex;align-items:center;gap:10px;font-weight:600}
 .key-ic{font-size:10px;border-radius:5px;padding:1px 5px;margin-inline-start:6px;font-weight:700;letter-spacing:.3px;vertical-align:1px}
@@ -171,7 +172,7 @@ table.data tr:hover td.actions{opacity:1}
 /* ================= Dialog ================= */
 dialog{border:0;border-radius:20px;padding:0;width:min(580px,94vw);--dlg-max:90vh;max-height:var(--dlg-max);box-shadow:0 30px 80px -20px rgba(15,23,42,.45);overflow:hidden}
 @supports (height:1svh){dialog{--dlg-max:90svh}}
-#dlgForm{display:flex;flex-direction:column;max-height:var(--dlg-max)}
+dialog>form{display:flex;flex-direction:column;max-height:var(--dlg-max)}
 dialog::backdrop{background:rgba(15,23,42,.45);backdrop-filter:blur(3px)}
 dialog[open]{animation:pop .18s ease-out}
 @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
@@ -330,3 +331,60 @@ table.rels td{white-space:normal;vertical-align:top}
   .content{padding-bottom:72px}
   .field input,.field select{font-size:16px}   /* מונע זום אוטומטי של iOS בעת הקלדה */
 }
+
+/* ================= Responsive tables ================= */
+table.data td{white-space:normal;overflow-wrap:anywhere}
+table.data td .num,table.data td.num,table.data .chip,table.data .tag,table.data .rel-type{white-space:nowrap;overflow-wrap:normal}
+table.data th{white-space:normal}
+@media (max-width:1500px){.grid.c32{grid-template-columns:1fr}}
+@media (max-width:1180px) and (min-width:901px){:root{--side-w:224px}.content{padding:24px 22px 40px}}
+@media (max-width:1280px){table.data .chip{white-space:normal;text-align:right}}
+@media (max-width:1100px){
+  table.data th,table.data td{padding:10px 9px}
+  .card table.data th:first-child,.card table.data td:first-child{padding-inline-start:18px}
+}
+/* מסך צר: כל שורה הופכת לכרטיס – שם העמודה מימין והערך לידו */
+@media (max-width:700px){
+  /* במסך צר הכותרות הופכות לשורת "צ'יפים" למיון */
+  table.data thead{display:block;border-bottom:1px solid var(--line);background:#f8fafc}
+  table.data thead tr{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
+  table.data thead th,.card table.data thead th:first-child{display:inline-flex;align-items:center;border:0;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px}
+  table.data thead th:empty{display:none}
+  table.data,table.data tbody,table.data tr,table.data td{display:block;width:100%}
+  table.data tbody tr{padding:12px 16px;border-bottom:1px solid var(--line)}
+  table.data tbody tr:last-child{border-bottom:0}
+  table.data td,.card table.data td:first-child{border:0;padding:4px 0;display:grid;grid-template-columns:minmax(92px,34%) 1fr;gap:10px;align-items:center;text-align:right}
+  table.data td::before{content:attr(data-label);color:var(--muted);font-size:13px;font-weight:500}
+  table.data td[data-label=""]{display:flex;gap:4px}
+  table.data td[data-label=""]::before{display:none}
+  table.data td.actions{opacity:1;width:100%;justify-content:flex-start;margin-top:4px}
+  table.data td>*{min-width:0;justify-self:start}
+  table.rels td{grid-template-columns:1fr}
+  table.rels td::before{font-size:12px}
+}
+
+table.data td.actions{white-space:nowrap}
+.header .menu-btn{display:none}
+@media (max-width:900px){.header .menu-btn{display:inline-grid}}
+
+/* ---- sorting ---- */
+table.data th.sortable{cursor:pointer;user-select:none;position:relative}
+table.data th.sortable:hover{color:var(--ink);background:#f1f5f9}
+table.data th.sortable::after{content:"↕";margin-inline-start:6px;font-size:11px;opacity:.35}
+table.data th.sort-asc::after{content:"↑";opacity:1;color:var(--primary)}
+table.data th.sort-desc::after{content:"↓";opacity:1;color:var(--primary)}
+table.data th.sort-asc,table.data th.sort-desc{color:var(--ink)}
+table.data th.sortable:focus-visible{outline:2px solid #93b4f5;outline-offset:-2px}
+/* ---- nav sub item ---- */
+.nav-item.nav-sub{padding:7px 12px 7px 12px;margin-inline-start:22px;font-size:13.5px}
+.nav-item.nav-sub .nav-ic{opacity:.8}
+/* ---- transfer ---- */
+.field.full,.xfer-preview.full{grid-column:1/-1}
+.xfer-preview{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.xfer-flow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.xfer-flow span{display:flex;flex-direction:column}
+.xfer-flow b{font-size:17px;font-variant-numeric:tabular-nums}
+.xfer-flow small{color:var(--muted);font-size:12.5px}
+.xfer-flow .arrow{font-size:20px;color:var(--faint)}
+.xfer-preview .psub{margin-top:6px}
+#xferDlg .field.invalid input,#xferDlg .field.invalid select{border-color:#fda4af;background-color:#fff5f6}
