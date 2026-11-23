@@ -220,7 +220,6 @@
           <p>${esc(e.desc)}</p></div>
         <div class="actions">
           <label class="search">${ICON('search', 17)}<input id="q" type="search" placeholder="חיפוש ב${esc(e.label)}..." value="${esc(searchState[key] || '')}" aria-label="חיפוש"></label>
-          ${key === 'transactions' ? `<button class="btn" id="xferBtn" type="button">${ICON('transactions', 17)} העברה בין חשבונות</button>` : ''}
           <button class="btn primary" id="addBtn" type="button">${ICON('plus', 17)} ${esc(NEW(e))}</button>
         </div>
       </div>
@@ -251,7 +250,6 @@
     draw();
     $('#q').addEventListener('input', ev => { searchState[key] = ev.target.value; draw(); });
     $('#addBtn').addEventListener('click', () => openForm(key));
-    if ($('#xferBtn')) $('#xferBtn').addEventListener('click', () => openTransfer());
   }
 
   /* ---------- Detail ---------- */
@@ -395,8 +393,9 @@
     const id = `f_${f.key}`;
     let ctl;
     if (f.type === 'select') {
+      const opts = f.options.concat(e.key === 'transactions' && f.key === 'type' && !rec ? [XFER] : []);
       ctl = `<select id="${id}" name="${f.key}" ${lock ? 'disabled' : ''}><option value="">בחירה...</option>
-        ${f.options.map(o => `<option value="${esc(o)}" ${String(v) === o ? 'selected' : ''}>${esc(optLabel(f, o))}</option>`).join('')}</select>`;
+        ${opts.map(o => `<option value="${esc(o)}" ${String(v) === o ? 'selected' : ''}>${esc(o === XFER ? 'העברה בין חשבונות' : optLabel(f, o))}</option>`).join('')}</select>`;
     } else if (f.type === 'ref') {
       const te = ent(f.ref);
       let opts = db[f.ref];
@@ -422,8 +421,16 @@
     $('#dlgTitle').textContent = rec ? `עריכת ${e.single}` : NEW(e);
     $('#dlgTile').style.setProperty('--c', e.color);
     $('#dlgTile').innerHTML = ICON(key, 20);
-    $('#dlgBody').innerHTML = e.fields.map(f => inputFor(e, f, rec, !!rec)).join('');
+    // בתנועה חדשה: שדה "לחשבון" (מוצג רק כשסוג התנועה הוא העברה) מיד אחרי שדה החשבון
+    const toField = key === 'transactions' && !rec
+      ? `<div class="field" data-field="toAccountNo" hidden><label for="f_toAccountNo">לחשבון <span class="req">*</span></label>
+        <select id="f_toAccountNo" name="toAccountNo"><option value="">בחירה...</option>${db.accounts.map(a => `<option value="${a.accountNo}">${esc(titleOf('accounts', a))}</option>`).join('')}</select>
+        <span class="err" data-err="toAccountNo"></span></div>` : '';
+    let html = e.fields.map(f => inputFor(e, f, rec, !!rec) + (f.key === 'accountNo' ? toField : '')).join('');
+    if (toField) html += '<div class="xfer-preview full" id="txPreview" hidden></div>';
+    $('#dlgBody').innerHTML = html;
     $('#dlgBody').scrollTop = 0;
+    syncTxMode();
     $('#formMsg').textContent = '';
     const d = $('#dlg');
     if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
@@ -463,6 +470,7 @@
   function readForm() {
     const e = ent(formCtx.key), form = $('#dlgForm'), data = {};
     e.fields.forEach(f => { data[f.key] = readValue(f, form); });
+    if (form.elements.toAccountNo) data.toAccountNo = form.elements.toAccountNo.value === '' ? '' : Number(form.elements.toAccountNo.value);
     return data;
   }
   /** מציג שגיאות: בזמן הקלדה רק לשדות שנגעו בהם; בשמירה – לכולם */
@@ -472,7 +480,8 @@
       const k = fld.dataset.field, show = all || formCtx.touched.has(k);
       const msg = show ? errs[k] : '';
       fld.classList.toggle('invalid', !!msg);
-      const val = readValue(ent(formCtx.key).fields.find(f => f.key === k), form);
+      const fd = ent(formCtx.key).fields.find(f => f.key === k);
+      const val = fd ? readValue(fd, form) : ((fld.querySelector('select,input') || {}).value || '');
       fld.classList.toggle('valid', show && !msg && val !== '' && !fld.querySelector('[readonly],[disabled]'));
       fld.querySelector('.err').textContent = msg || '';
     });
@@ -484,7 +493,8 @@
     if (!formCtx) return;
     const fld = ev.target.closest('.field');
     if (fld && (ev.type !== 'input' || fld.classList.contains('invalid') || formCtx.submitted)) formCtx.touched.add(fld.dataset.field);
-    showErrors(validateRecord(formCtx.key, readForm(), formCtx.rec), formCtx.submitted);
+    syncTxMode();
+    showErrors(formErrors(formCtx.key, readForm(), formCtx.rec), formCtx.submitted);
   }
   function submitForm(ev) {
     if (ev) ev.preventDefault();
@@ -493,9 +503,16 @@
     const e = ent(key);
     formCtx.submitted = true;
     const data = readForm();
-    const errs = validateRecord(key, data, rec);
+    const errs = formErrors(key, data, rec);
     showErrors(errs, true);
     if (Object.keys(errs).length) return formFail();
+    if (isXferForm(data)) {                       // העברה בין חשבונות – שתי תנועות מקושרות
+      const x = xferFromData(data), r = checkXfer(x);
+      doTransfer(x, r.received);
+      closeForm();
+      toast(`ההעברה בוצעה: ${money(x.amount, curOf(x.from))} מחשבון ${x.from.accountNo} לחשבון ${x.to.accountNo}`);
+      return route(true);
+    }
     if (rec) Object.assign(rec, data); else db[key].push(data);
     save(); closeForm();
     toast(rec ? 'השינויים נשמרו' : ADDED(e));
@@ -517,32 +534,11 @@
   }
 
   /* =====================================================================
-     העברה בנקאית בין חשבונות – יוצרת שתי תנועות מקושרות (משיכה + הפקדה)
+     העברה בין חשבונות – סוג תנועה בטופס "תנועה חדשה".
+     יוצרת שתי תנועות מקושרות: משיכה מחשבון המקור והפקדה בחשבון היעד
      ===================================================================== */
   const round2 = n => Math.round(n * 100) / 100;
-  const accOpt = a => `<option value="${a.accountNo}">${esc(titleOf('accounts', a))} · יתרה ${money(balanceOf(a), curOf(a))}</option>`;
-  function openTransfer(fromNo) {
-    const opts = db.accounts.filter(a => a.status === 'פעיל');
-    $('#xferTile').innerHTML = ICON('transactions', 20);
-    $('#x_from').innerHTML = '<option value="">בחירה...</option>' + opts.map(accOpt).join('');
-    $('#x_to').innerHTML = '<option value="">בחירה...</option>' + opts.map(accOpt).join('');
-    if (fromNo) $('#x_from').value = String(fromNo);
-    $('#x_amount').value = ''; $('#x_desc').value = '';
-    $('#x_date').value = TODAY(); $('#x_date').max = TODAY();
-    $('#xferForm').dataset.submitted = '';
-    showXferErrors({}, false);
-    const d = $('#xferDlg');
-    if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
-    updateXfer();
-  }
-  function readXfer() {
-    return {
-      from: findBy('accounts', $('#x_from').value), to: findBy('accounts', $('#x_to').value),
-      fromRaw: $('#x_from').value, toRaw: $('#x_to').value,
-      amount: parseNum(cleanText({}, $('#x_amount').value), 'money'), amountRaw: $('#x_amount').value.trim(),
-      date: $('#x_date').value, description: cleanText({}, $('#x_desc').value)
-    };
-  }
+  const XFER = 'העברה';
   /** מחשב את ההעברה ומחזיר שגיאות + סכום שיתקבל */
   function checkXfer(x) {
     const errs = {};
@@ -575,49 +571,46 @@
     }
     return { errs, received, rate };
   }
-  function showXferErrors(errs, all) {
-    document.querySelectorAll('#xferForm .field').forEach(fld => {
-      const k = fld.dataset.field, msg = all ? errs[k] : (fld.dataset.touched ? errs[k] : '');
-      fld.classList.toggle('invalid', !!msg);
-      fld.querySelector('.err').textContent = msg || '';
-    });
-    const n = Object.keys(errs).length;
-    $('#xferMsg').textContent = all && n ? (n === 1 ? 'יש לתקן את השדה המסומן' : `יש לתקן ${n} שדות מסומנים`) : '';
+  const isXferForm = data => formCtx && formCtx.key === 'transactions' && !formCtx.rec && data.type === XFER;
+  const xferFromData = d => ({
+    from: findBy('accounts', d.accountNo), to: findBy('accounts', d.toAccountNo),
+    fromRaw: d.accountNo === '' ? '' : String(d.accountNo), toRaw: d.toAccountNo === '' || d.toAccountNo == null ? '' : String(d.toAccountNo),
+    amount: d.amount === '' ? NaN : d.amount, amountRaw: d.amount === '' ? '' : String(d.amount), date: d.date, description: d.description || ''
+  });
+  /** שגיאות טופס: בהעברה – כללי ההעברה; אחרת – בדיקת הרשומה הרגילה */
+  function formErrors(key, data, rec) {
+    if (!isXferForm(data)) return validateRecord(key, data, rec);
+    const r = checkXfer(xferFromData(data)), map = { from: 'accountNo', to: 'toAccountNo' }, errs = {};
+    Object.keys(r.errs).forEach(k => { errs[map[k] || k] = r.errs[k]; });
+    return errs;
   }
-  function updateXfer(ev) {
-    if (ev && ev.target.closest('.field')) ev.target.closest('.field').dataset.touched = '1';
-    const x = readXfer(), r = checkXfer(x);
-    $('#x_cur').textContent = x.from ? `(${{ ILS: '₪', USD: '$', EUR: '€' }[curOf(x.from)] || curOf(x.from)})` : '';
-    showXferErrors(r.errs, !!$('#xferForm').dataset.submitted);
-    const p = $('#xferPreview');
-    if (x.from && x.to && r.received != null && !r.errs.to) {
+  /** מציג/מסתיר את שדה "לחשבון" ואת התצוגה המקדימה לפי סוג התנועה */
+  function syncTxMode() {
+    if (!formCtx || formCtx.key !== 'transactions' || formCtx.rec) return;
+    const data = readForm(), on = data.type === XFER;
+    const toFld = document.querySelector('[data-field="toAccountNo"]'), prev = $('#txPreview');
+    if (!toFld) return;
+    toFld.hidden = !on;
+    document.querySelector('label[for="f_accountNo"]').firstChild.textContent = on ? 'מחשבון ' : 'חשבון ';
+    document.querySelector('label[for="f_amount"]').firstChild.textContent = on && findBy('accounts', data.accountNo)
+      ? `סכום (${{ ILS: '₪', USD: '$', EUR: '€' }[curOf(findBy('accounts', data.accountNo))]}) ` : 'סכום ';
+    const x = xferFromData(data), r = on ? checkXfer(x) : null;
+    if (on && x.from && x.to && r.received != null && !r.errs.to) {
       const fc = curOf(x.from), tc = curOf(x.to);
-      p.innerHTML = `<div class="xfer-flow"><span><b>${money(x.amount, fc)}</b><small>יורדים מחשבון ${x.from.accountNo}</small></span>
+      prev.innerHTML = `<div class="xfer-flow"><span><b>${money(x.amount, fc)}</b><small>יורדים מחשבון ${x.from.accountNo}</small></span>
         <span class="arrow">←</span><span><b>${money(r.received, tc)}</b><small>נכנסים לחשבון ${x.to.accountNo}</small></span></div>
         ${fc !== tc ? '<div class="psub">ההמרה לפי השער היציג של בנק ישראל</div>' : ''}`;
-      p.hidden = false;
-    } else p.hidden = true;
+      prev.hidden = false;
+    } else prev.hidden = true;
+    updateMoreHint();
   }
-  function submitTransfer(ev) {
-    if (ev) ev.preventDefault();
-    $('#xferForm').dataset.submitted = '1';
-    const x = readXfer(), r = checkXfer(x);
-    showXferErrors(r.errs, true);
-    if (Object.keys(r.errs).length) {
-      const first = document.querySelector('#xferForm .field.invalid input, #xferForm .field.invalid select');
-      if (first) { try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); } first.closest('.field').scrollIntoView({ block: 'center' }); }
-      const box = $('#xferDlg'); box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
-      return;
-    }
+  function doTransfer(x, received) {
     const tid = 'T' + Date.now(), id1 = nextId('transactions', 'txnId');
     const note = x.description ? ` – ${x.description}` : '';
     db.transactions.push(
       { txnId: id1, accountNo: x.from.accountNo, date: x.date, type: 'משיכה', amount: round2(x.amount), description: `העברה לחשבון ${x.to.accountNo}${note}`, transferId: tid },
-      { txnId: id1 + 1, accountNo: x.to.accountNo, date: x.date, type: 'הפקדה', amount: r.received, description: `העברה מחשבון ${x.from.accountNo}${note}`, transferId: tid });
+      { txnId: id1 + 1, accountNo: x.to.accountNo, date: x.date, type: 'הפקדה', amount: received, description: `העברה מחשבון ${x.from.accountNo}${note}`, transferId: tid });
     save();
-    const d = $('#xferDlg'); if (d.close) d.close(); else d.removeAttribute('open');
-    toast(`ההעברה בוצעה: ${money(x.amount, curOf(x.from))} מחשבון ${x.from.accountNo} לחשבון ${x.to.accountNo}`);
-    if (location.hash.startsWith('#/e/transactions')) route(true); else location.hash = '#/e/transactions';
   }
 
   /* ---------- Router ---------- */
@@ -625,7 +618,10 @@
     const parts = decodeURIComponent(location.hash.replace(/^#\/?/, '')).split('/');
     if (parts[0] === 'e' && parts[1] && parts[2]) viewDetail(parts[1], parts.slice(2).join('/'));
     else if (parts[0] === 'e' && parts[1]) viewList(parts[1]);
-    else if (parts[0] === 'transfer') { history.replaceState(null, '', '#/e/transactions'); viewList('transactions'); openTransfer(); }
+    else if (parts[0] === 'transfer') {          // קישור ישן – פותח תנועה חדשה מסוג העברה
+      history.replaceState(null, '', '#/e/transactions'); viewList('transactions'); openForm('transactions');
+      $('#f_type').value = XFER; syncTxMode();
+    }
     else viewHome();
     if (keepScroll !== true) window.scrollTo(0, 0);
   }
@@ -652,11 +648,6 @@
   });
   $('#dlgBody').addEventListener('scroll', updateMoreHint, { passive: true });
   $('#dlgCancel').addEventListener('click', closeForm);
-  $('#xferForm').addEventListener('submit', submitTransfer);
-  $('#xferSave').addEventListener('click', ev => { ev.preventDefault(); submitTransfer(); });
-  ['input', 'change'].forEach(t => $('#xferForm').addEventListener(t, updateXfer));
-  $('#xferForm').addEventListener('focusout', updateXfer);
-  $('#xferCancel').addEventListener('click', () => { const d = $('#xferDlg'); if (d.close) d.close(); else d.removeAttribute('open'); });
   $('#dlg').addEventListener('close', () => { formCtx = null; });
   window.addEventListener('hashchange', route);
 

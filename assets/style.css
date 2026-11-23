@@ -376,8 +376,6 @@ table.data th.sort-desc::after{content:"↓";opacity:1;color:var(--primary)}
 table.data th.sort-asc,table.data th.sort-desc{color:var(--ink)}
 table.data th.sortable:focus-visible{outline:2px solid #93b4f5;outline-offset:-2px}
 /* ---- nav sub item ---- */
-.nav-item.nav-sub{padding:7px 12px 7px 12px;margin-inline-start:22px;font-size:13.5px}
-.nav-item.nav-sub .nav-ic{opacity:.8}
 /* ---- transfer ---- */
 .field.full,.xfer-preview.full{grid-column:1/-1}
 .xfer-preview{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
@@ -387,4 +385,3 @@ table.data th.sortable:focus-visible{outline:2px solid #93b4f5;outline-offset:-2
 .xfer-flow small{color:var(--muted);font-size:12.5px}
 .xfer-flow .arrow{font-size:20px;color:var(--faint)}
 .xfer-preview .psub{margin-top:6px}
-#xferDlg .field.invalid input,#xferDlg .field.invalid select{border-color:#fda4af;background-color:#fff5f6}

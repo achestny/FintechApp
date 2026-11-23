@@ -71,8 +71,7 @@
       <div class="nav-sec">ראשי</div>
       ${link(`${base}#/`, 'home', 'לוח בקרה')}
       <div class="nav-sec">ישויות</div>
-      ${S.entities.map(e => link(`${base}#/e/${e.key}`, e.key, e.label, `style="--c:${e.color}"`) +
-        (e.key === 'transactions' ? `<a href="${base}#/transfer" class="nav-item nav-sub" style="--c:${e.color}"><span class="nav-ic">${ICON('arrowLeft', 15)}</span><span class="nav-lbl">העברה בין חשבונות</span></a>` : '')).join('')}
+      ${S.entities.map(e => link(`${base}#/e/${e.key}`, e.key, e.label, `style="--c:${e.color}"`)).join('')}
       <div class="nav-sec">מודל הנתונים</div>
       ${link('erd.html', 'erd', 'תרשים ERD')}
       <div class="side-foot">גרסה ${APP_VERSION} · נתונים פיקטיביים</div>`;
