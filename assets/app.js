@@ -26,7 +26,7 @@
   const titleOf = (key, r) => r ? ent(key).title(r, db) : '—';
   const href = (key, r) => `#/e/${key}/${encodeURIComponent(pkOf(ent(key), r))}`;
   const initials = s => String(s || '').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('');
-  const PEOPLE = ['customers', 'employees'];
+  const PEOPLE = ['customers'];
   const TAGS = { 'פעיל': 'ok', 'סגור': 'bad', 'מוקפא': 'mid', 'הפקדה': 'ok', 'משיכה': 'bad' };
   const balanceOf = a => ent('accounts').computed[0].fn(a, db);
   const curOf = a => (a && a.currency) || 'ILS';
@@ -262,7 +262,7 @@
 
     const relSections = related(key, id).map(({ e: re, f, rows }) => {
       const cols = re.fields.filter(x => x.key !== f.key);
-      const name = re.key === key ? 'עובדים כפופים' : re.label;
+      const name = re.label;
       return `<div class="card flush">
         <div class="card-head" style="padding:20px 24px 6px">${tile(re, 18)}<h2>${esc(name)}</h2>
           <span class="count-pill">${rows.length}</span>
@@ -305,7 +305,7 @@
     if (!r) return false;
     const blockers = related(key, id).filter(x => x.rows.length);
     if (blockers.length) {
-      toast(`לא ניתן למחוק – קיימות רשומות קשורות (${blockers.map(b => `${b.e.key === key ? 'עובדים כפופים' : b.e.label}: ${b.rows.length}`).join(', ')})`, true);
+      toast(`לא ניתן למחוק – קיימות רשומות קשורות (${blockers.map(b => `${b.e.label}: ${b.rows.length}`).join(', ')})`, true);
       return false;
     }
     if (!confirm(`למחוק את "${titleOf(key, r)}"?`)) return false;
@@ -365,14 +365,6 @@
   /* כללים עסקיים (בין שדות ובין טבלאות) */
   function businessRules(key, data, rec, err) {
     const acc = data.accountNo != null && data.accountNo !== '' ? findBy('accounts', data.accountNo) : null;
-    if (key === 'employees' && data.managerId !== '' && data.managerId != null) {
-      if (String(data.managerId) === String(data.empId)) err('managerId', 'עובד לא יכול לנהל את עצמו');
-      let cur = findBy('employees', data.managerId), guard = 0;
-      while (cur && guard++ < 100) {
-        if (String(cur.empId) === String(data.empId)) { err('managerId', 'מעגל ניהול: העובד אינו יכול להיות מנהל של המנהל שלו'); break; }
-        cur = cur.managerId === '' || cur.managerId == null ? null : findBy('employees', cur.managerId);
-      }
-    }
     if (key === 'transactions' && acc) {
       const isNew = !rec || String(rec.accountNo) !== String(data.accountNo) || rec.amount !== data.amount || rec.type !== data.type;
       if (acc.status === 'סגור' && isNew) err('accountNo', 'לא ניתן לבצע תנועה בחשבון סגור');

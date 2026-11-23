@@ -87,7 +87,7 @@ a.kpi:hover{box-shadow:var(--sh-2);border-color:var(--line-2)}
 .grid.c32{grid-template-columns:3fr 2fr}
 
 /* entity strip */
-.ent-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px}
+.ent-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
 .ent-chip{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:14px;color:var(--ink);transition:.15s}
 .ent-chip:hover{border-color:color-mix(in srgb,var(--c) 40%,#fff);background:color-mix(in srgb,var(--c) 4%,#fff)}
 .ent-chip .tile{width:34px;height:34px;border-radius:10px}
@@ -252,7 +252,7 @@ table.rels td{white-space:normal;vertical-align:top}
 /* ================= Responsive ================= */
 @media (max-width:1180px){
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .ent-strip{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .ent-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
   .grid.c32{grid-template-columns:1fr}
 }
 @media (max-width:900px){

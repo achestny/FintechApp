@@ -87,7 +87,7 @@ window.SCHEMA = {
     },
     {
       key: 'branches', label: 'סניפים', single: 'סניף', en: 'Branch', color: '#6366f1',
-      desc: 'סניפי הבנק. בכל סניף מועסקים עובדים, ומנוהלים בו לקוחות וחשבונות.',
+      desc: 'סניפי הבנק והלקוחות והחשבונות שמנוהלים בכל סניף.',
       pk: ['branchId'],
       fields: [
         { key: 'branchId', label: 'קוד סניף', type: 'text', required: true, pattern: '^\\d{3}$', hint: '3 ספרות' },
@@ -96,20 +96,6 @@ window.SCHEMA = {
         { key: 'phone', label: 'טלפון', type: 'tel', pattern: '^0\\d{1,2}-?\\d{7}$', hint: 'לדוגמה 03-5551234' }
       ],
       title: r => `${r.name} (${r.branchId})`
-    },
-    {
-      key: 'employees', label: 'עובדים', single: 'עובד', en: 'Employee', color: '#64748b',
-      desc: 'עובדי הבנק, הסניף שבו כל אחד מועסק והמנהל הישיר שלו.',
-      pk: ['empId'],
-      fields: [
-        { key: 'empId', label: 'מספר עובד', type: 'number', required: true, auto: true },
-        { key: 'fullName', label: 'שם מלא', type: 'text', required: true },
-        { key: 'role', label: 'תפקיד', type: 'select', required: true, options: ['מנהל אזור', 'מנהל סניף', 'בנקאי', 'פקיד'] },
-        { key: 'hireDate', label: 'תאריך העסקה', type: 'date', required: true, noFuture: true },
-        { key: 'branchId', label: 'סניף', type: 'ref', ref: 'branches', required: true },
-        { key: 'managerId', label: 'מנהל ישיר', type: 'ref', ref: 'employees' }
-      ],
-      title: r => r.fullName
     }
   ],
 
@@ -125,12 +111,7 @@ window.SCHEMA = {
     { key: 'r_txn', label: 'כולל', a: 'accounts', b: 'transactions', pA: '(0,N)', pB: '(1,1)', part: ['בחשבון 0 עד N תנועות', 'כל תנועה שייכת לחשבון אחד בדיוק'], card: '1:N', degree: 'בינארי',
       impl: 'מפתח זר "מספר חשבון" בטבלת תנועות', text: 'חשבון כולל תנועות רבות; כל תנועה שייכת לחשבון אחד' },
     { key: 'r_loan', label: 'לוקח', a: 'customers', b: 'loans', pA: '(0,N)', pB: '(1,1)', part: ['ללקוח 0 עד N הלוואות', 'כל הלוואה שייכת ללקוח אחד בדיוק'], card: '1:N', degree: 'בינארי',
-      impl: 'מפתח זר "ת.ז" בטבלת הלוואות', text: 'לקוח יכול לקחת הלוואות רבות; כל הלוואה שייכת ללקוח אחד' },
-    { key: 'r_emp_branch', label: 'מועסק', a: 'employees', b: 'branches', pA: '(1,1)', pB: '(1,N)', part: ['כל עובד מועסק בסניף אחד בדיוק', 'בסניף עובד אחד לפחות ועד N עובדים'], card: '1:N', degree: 'בינארי',
-      impl: 'מפתח זר "קוד סניף" בטבלת עובדים', text: 'עובד מועסק בסניף אחד; בסניף עובדים רבים' },
-    { key: 'r_manages', label: 'מנהל של', a: 'employees', b: 'employees', pA: '(0,N)', pB: '(0,1)', part: ['בתפקיד מנהל: מנהל 0 עד N עובדים', 'בתפקיד מנוהל: יש לו 0 או 1 מנהל ישיר'], card: '1:N', degree: 'אונארי (רקורסיבי)',
-      roles: ['מנהל', 'מנוהל'],
-      impl: 'מפתח זר "מנהל ישיר" בטבלת עובדים, המפנה לאותה טבלה', text: 'מנהל אחד מנהל עובדים רבים; לכל עובד מנהל ישיר אחד לכל היותר' }
+      impl: 'מפתח זר "ת.ז" בטבלת הלוואות', text: 'לקוח יכול לקחת הלוואות רבות; כל הלוואה שייכת ללקוח אחד' }
   ]
 };
 
@@ -140,14 +121,6 @@ window.SEED = {
     { branchId: '101', name: 'מרכז העיר', city: 'תל אביב', phone: '03-5550101' },
     { branchId: '205', name: 'הדר', city: 'חיפה', phone: '04-5550205' },
     { branchId: '312', name: 'קריית אונו', city: 'קריית אונו', phone: '03-5550312' }
-  ],
-  employees: [
-    { empId: 1, fullName: 'מיכל ברק', role: 'מנהל אזור', hireDate: '2012-03-01', branchId: '101', managerId: '' },
-    { empId: 2, fullName: 'יוסי אדלר', role: 'מנהל סניף', hireDate: '2015-06-15', branchId: '101', managerId: 1 },
-    { empId: 3, fullName: 'רונית שחר', role: 'מנהל סניף', hireDate: '2016-09-01', branchId: '205', managerId: 1 },
-    { empId: 4, fullName: 'עמית גל', role: 'בנקאי', hireDate: '2019-01-10', branchId: '101', managerId: 2 },
-    { empId: 5, fullName: 'נועה פרץ', role: 'בנקאי', hireDate: '2021-04-20', branchId: '205', managerId: 3 },
-    { empId: 6, fullName: 'דני אורן', role: 'פקיד', hireDate: '2023-11-05', branchId: '312', managerId: 1 }
   ],
   customers: [
     { customerId: '012345674', fullName: 'שרה כהן', phone: '050-1112233', email: 'sarah@example.com', joinDate: '2018-02-14', branchId: '101' },

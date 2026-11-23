@@ -21,17 +21,14 @@
     accounts:     { x: 580,  y: 520, attrs: { accountNo: [465, 630], type: [590, 662], openDate: [700, 630], status: [500, 412], currency: [614, 404] } },
     transactions: { x: 170,  y: 520, attrs: { txnId: [105, 418], type: [240, 418], date: [72, 622], amount: [190, 650], description: [305, 622] } },
     loans:        { x: 1180, y: 880, attrs: { loanId: [1015, 828], purpose: [1005, 918], amount: [1090, 988], rate: [1275, 988], startDate: [1352, 918], months: [1345, 828] } },
-    branches:     { x: 880,  y: 200, attrs: { branchId: [762, 92], name: [880, 64], city: [998, 92], phone: [1040, 192] } },
-    employees:    { x: 380,  y: 200, attrs: { empId: [258, 96], fullName: [380, 68], role: [502, 96], hireDate: [522, 150] } }
+    branches:     { x: 880,  y: 200, attrs: { branchId: [762, 92], name: [880, 64], city: [998, 92], phone: [1040, 192] } }
   };
   const R = {
     r_owns:        { x: 880,  y: 520, attrs: [['סוג בעלות', 826, 648], ['תאריך צירוף', 955, 628]] },
     r_cust_branch: { x: 1030, y: 360 },
     r_acc_branch:  { x: 730,  y: 360 },
     r_txn:         { x: 375,  y: 520 },
-    r_loan:        { x: 1180, y: 700 },
-    r_emp_branch:  { x: 630,  y: 200 },
-    r_manages:     { x: 380,  y: 362 }
+    r_loan:        { x: 1180, y: 700 }
   };
   const rx = t => Math.max(42, t.length * 4.1 + 18);
   const P = { lines: [], attrs: [], labels: [], shapes: [] };
@@ -106,7 +103,7 @@
     <span class="item"><svg width="46" height="24"><ellipse cx="23" cy="12" rx="21" ry="10" fill="${C.atF}" stroke="${C.atS}" stroke-width="1.6"/></svg>תכונה</span>
     <span class="item"><svg width="46" height="24"><ellipse cx="23" cy="12" rx="21" ry="10" fill="${C.atF}" stroke="${C.atS}" stroke-width="1.6"/><text x="23" y="16" text-anchor="middle" font-size="10" font-weight="700" text-decoration="underline">מזהה</text></svg>מפתח ראשי</span>
     <span class="item"><b class="ltr" style="color:#a2332a">(min,max)</b>&nbsp;השתתפות הישות בקשר – למשל <b class="ltr" style="color:#a2332a">(1,N)</b> = לפחות אחד ועד N</span>
-    <span class="item"><i style="color:#2b4f9e">מנהל</i>&nbsp;שם תפקיד בקשר רקורסיבי</span>`;
+`;
 
   /* ---------- הדגשה ---------- */
   const info = $('selInfo'), clearBtn = $('clearSel'), DEFAULT_INFO = info.textContent;
