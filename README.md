@@ -40,3 +40,6 @@
 3. אחרי כדקה האתר זמין בכתובת `https://<שם-משתמש>.github.io/<שם-המאגר>/`.
 
 מספר הגרסה מופיע בתחתית התפריט. אם נשארה לשונית פתוחה עם גרסה ישנה, יופיע בה פס "רענון".
+
+## קרדיטים לתמונות
+תמונות מ-Unsplash (רישיון Unsplash, שימוש חופשי): Dan Gold, Cytonn Photography, Nathana Rebouças, Sebastian Herrmann, SumUp, Jakub Żerdzicki, Leo_Visions. אם תמונה לא נטענת, מוצג במקומה איור.
