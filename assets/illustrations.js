@@ -70,3 +70,31 @@
       ${sparkle(150, 30, '#fbbf24')}${sparkle(46, 36, '#93c5fd')}`, 'il-empty')
   };
 })();
+
+/* תמונות (Unsplash – חינמיות לשימוש לפי Unsplash License). אם תמונה לא נטענת – מוצג האיור במקומה */
+(function () {
+  'use strict';
+  const U = (id, w) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=70`;
+  window.PHOTOS = {
+    hero:         { id: 'photo-1528791075103-b149f525eb22', by: 'Dan Gold' },            // קו הרקיע של תל אביב
+    customers:    { id: 'photo-1521790797524-b2497295b8a0', by: 'Cytonn Photography' },  // לחיצת יד
+    accounts:     { id: 'photo-1637021536338-b4b52e06cf82', by: 'Nathana Rebouças' },    // כרטיס וטלפון
+    ownerships:   { id: 'photo-1549923746-c502d488b3ea', by: 'Sebastian Herrmann' },     // שותפות
+    transactions: { id: 'photo-1742836531220-40e35e3f4d3f', by: 'SumUp' },               // תשלום בכרטיס
+    loans:        { id: 'photo-1722487631997-cf1e0f92c2c4', by: 'Jakub Żerdzicki' },     // מפתחות לבית
+    branches:     { id: 'photo-1764983255241-3768b4df0c57', by: 'Leo_Visions' }          // חזית בנק
+  };
+  window.photoImg = (key, w, cls, eager) => {
+    const p = window.PHOTOS[key];
+    if (!p) return (window.ILLUS && ILLUS[key]) || '';
+    return `<img class="${cls}" src="${U(p.id, w)}" srcset="${U(p.id, w)} 1x, ${U(p.id, w * 2)} 2x" alt="" ${eager ? 'fetchpriority="high"' : 'loading="lazy"'}
+      decoding="async" referrerpolicy="no-referrer" title="צילום: ${p.by} · Unsplash" data-k="${key}" onerror="__photoFail(this)" onload="this.classList.add('ok')">`;
+  };
+  window.__photoFail = img => {
+    const k = img.dataset.k, host = img.parentElement;
+    img.remove();
+    if (!host) return;
+    if (host.classList.contains('wl-photo-wrap')) host.closest('.welcome').classList.remove('has-photo');
+    else host.innerHTML = (window.ILLUS && ILLUS[k]) || '';
+  };
+})();

@@ -242,7 +242,8 @@
     const series = balanceSeries(db.accounts, true);
 
     $('#view').innerHTML = `
-      <section class="welcome">
+      <section class="welcome${window.photoImg ? ' has-photo' : ''}">
+        ${window.photoImg ? `<div class="wl-photo-wrap">${photoImg('hero', 1400, 'wl-photo', true)}</div>` : ''}
         <div class="wl-text"><div class="wl-greet">${greeting()}</div>
           <h1>לוח בקרה</h1>
           <p>תמונת מצב של הלקוחות, החשבונות וההלוואות בבנק.</p></div>
@@ -321,7 +322,7 @@
     shell(key, [['לוח בקרה', '#/'], [e.label, `#/e/${key}`]]);
     $('#view').innerHTML = `
       <div class="page-head with-art" style="--c:${e.color}">
-        <div class="ph-art">${window.ILLUS && ILLUS[key] || ''}</div>
+        <div class="ph-art">${window.photoImg ? photoImg(key, 420, 'ph-photo', true) : (window.ILLUS && ILLUS[key] || '')}</div>
         <div><h1>${esc(e.label)} <span class="count-pill" style="vertical-align:middle">${db[key].length}</span></h1>
           <p>${esc(e.desc)}</p></div>
         <div class="actions">
