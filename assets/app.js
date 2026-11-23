@@ -110,6 +110,95 @@
       <div class="fx-foot">${esc(msg)}<br><span class="faint">מקור: <a href="https://frankfurter.dev/providers/boi/" target="_blank" rel="noopener">${esc(FXN.source || 'בנק ישראל')}</a></span></div></div>`;
   }
 
+  /* =====================================================================
+     רכיבים חזותיים: גרף יתרה לאורך זמן, כרטיסי בנק, ברכה
+     ===================================================================== */
+  const greeting = () => { const h = new Date().getHours(); return h < 5 ? 'לילה טוב' : h < 12 ? 'בוקר טוב' : h < 17 ? 'צהריים טובים' : h < 21 ? 'ערב טוב' : 'לילה טוב'; };
+  const CHARTS = {};          // id -> { points, cur, color }
+  let chartSeq = 0;
+  /** סדרת יתרה מצטברת לפי תאריך. accounts – רשימת חשבונות; toCur – 'ILS' (המרה) או מטבע החשבון */
+  function balanceSeries(accounts, convert) {
+    const nos = new Set(accounts.map(a => String(a.accountNo)));
+    const byNo = {}; accounts.forEach(a => { byNo[a.accountNo] = a; });
+    const txs = db.transactions.filter(t => nos.has(String(t.accountNo)) && t.date).sort((a, b) => a.date.localeCompare(b.date) || a.txnId - b.txnId);
+    let total = 0, skipped = 0; const pts = [];
+    txs.forEach(t => {
+      let v = (t.type === 'הפקדה' ? 1 : -1) * Number(t.amount || 0);
+      if (convert) { const c = FXN.toILS(v, curOf(byNo[t.accountNo])); if (c == null) { skipped++; return; } v = c; }
+      total += v;
+      if (pts.length && pts[pts.length - 1].d === t.date) pts[pts.length - 1].v = total; else pts.push({ d: t.date, v: total });
+    });
+    const today = new Date().toISOString().slice(0, 10);
+    if (pts.length && pts[pts.length - 1].d < today) pts.push({ d: today, v: total, now: true });
+    return { pts, skipped };
+  }
+  function chartBox(points, cur, color, height) {
+    const id = 'ch' + (++chartSeq);
+    CHARTS[id] = { points, cur, color, height: height || 220 };
+    return `<div class="chart" id="${id}" style="height:${height || 220}px"><div class="ch-tip" hidden></div></div>`;
+  }
+  const niceMax = v => { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; };
+  const shortMoney = (n, cur) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: cur || 'ILS', notation: 'compact', maximumFractionDigits: 1 }).format(n);
+  function drawCharts() {
+    document.querySelectorAll('.chart').forEach(el => {
+      const c = CHARTS[el.id]; if (!c) return;
+      const W = Math.max(260, el.clientWidth), H = c.height, P = { l: 58, r: 14, t: 14, b: 28 };
+      const pts = c.points;
+      if (pts.length < 2) { el.innerHTML = '<div class="empty" style="padding:30px">אין מספיק נתונים לגרף</div>'; return; }
+      const t0 = new Date(pts[0].d).getTime(), t1 = new Date(pts[pts.length - 1].d).getTime() || t0 + 1;
+      const minV = Math.min(0, ...pts.map(p => p.v)), maxV = niceMax(Math.max(...pts.map(p => p.v)));
+      const X = d => P.l + (new Date(d).getTime() - t0) / Math.max(1, t1 - t0) * (W - P.l - P.r);
+      const Y = v => P.t + (1 - (v - minV) / (maxV - minV || 1)) * (H - P.t - P.b);
+      // קו מדרגות: היתרה נשארת קבועה עד התנועה הבאה
+      let line = `M ${X(pts[0].d)} ${Y(pts[0].v)}`;
+      for (let i = 1; i < pts.length; i++) line += ` H ${X(pts[i].d)} V ${Y(pts[i].v)}`;
+      const area = `${line} V ${Y(minV)} H ${X(pts[0].d)} Z`;
+      const grid = [0, .25, .5, .75, 1].map(f => minV + f * (maxV - minV)).map(v =>
+        `<line class="ch-grid" x1="${P.l}" x2="${W - P.r}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ch-y" x="${P.l - 8}" y="${Y(v) + 4}" text-anchor="end">${shortMoney(v, c.cur)}</text>`).join('');
+      // תוויות חודשים
+      const months = []; const d0 = new Date(pts[0].d); const m = new Date(d0.getFullYear(), d0.getMonth() + 1, 1);
+      while (m.getTime() <= t1) { months.push(new Date(m)); m.setMonth(m.getMonth() + 1); }
+      const step = Math.ceil(months.length / Math.max(1, Math.floor((W - P.l) / 70)));
+      const xl = months.filter((_, i) => i % step === 0).map(dt => { const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-01`;
+        return `<line class="ch-tick" x1="${X(iso)}" x2="${X(iso)}" y1="${H - P.b}" y2="${H - P.b + 4}"/><text class="ch-x" x="${X(iso)}" y="${H - 8}" text-anchor="middle">${dt.toLocaleDateString('he-IL', { month: 'short', year: '2-digit' })}</text>`; }).join('');
+      const dots = pts.filter(p => !p.now).map(p => `<circle class="ch-dot" cx="${X(p.d)}" cy="${Y(p.v)}" r="4" stroke="${c.color}"/>`).join('');
+      const gid = el.id + 'g';
+      el.innerHTML = `<svg width="${W}" height="${H}" direction="ltr" role="img" aria-label="גרף יתרה לאורך זמן">
+        <defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${c.color}" stop-opacity=".22"/><stop offset="1" stop-color="${c.color}" stop-opacity="0"/></linearGradient></defs>
+        ${grid}<path d="${area}" fill="url(#${gid})"/><path class="ch-line" d="${line}" stroke="${c.color}"/>${dots}${xl}
+        <line class="ch-cross" y1="${P.t}" y2="${H - P.b}" hidden/><circle class="ch-hot" r="6" fill="${c.color}" hidden/>
+        <rect class="ch-hit" x="${P.l}" y="0" width="${W - P.l - P.r}" height="${H}" fill="transparent"/></svg><div class="ch-tip" hidden></div>`;
+      const svg = el.querySelector('svg'), tip = el.querySelector('.ch-tip'), cross = el.querySelector('.ch-cross'), hot = el.querySelector('.ch-hot');
+      const move = ev => {
+        const r = svg.getBoundingClientRect(), x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+        let best = pts[0]; pts.forEach(p => { if (Math.abs(X(p.d) - x) < Math.abs(X(best.d) - x)) best = p; });
+        const px = X(best.d), py = Y(best.v);
+        cross.setAttribute('x1', px); cross.setAttribute('x2', px); cross.hidden = false;
+        hot.setAttribute('cx', px); hot.setAttribute('cy', py); hot.hidden = false;
+        tip.innerHTML = `<b>${money(best.v, c.cur)}</b><span>${best.now ? 'היום' : fdate(best.d)}</span>`;
+        tip.hidden = false;
+        tip.style.left = Math.min(Math.max(px, 70), W - 70) + 'px'; tip.style.top = Math.max(py - 12, 0) + 'px';
+      };
+      const leave = () => { tip.hidden = true; cross.hidden = true; hot.hidden = true; };
+      svg.addEventListener('mousemove', move); svg.addEventListener('touchstart', move, { passive: true });
+      svg.addEventListener('touchmove', move, { passive: true }); svg.addEventListener('mouseleave', leave);
+    });
+  }
+  let rsz = 0;
+  window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(drawCharts, 150); });
+
+  const CARD_THEME = { 'עו"ש': 'blue', 'חיסכון': 'teal', 'פיקדון': 'violet', 'עסקי': 'slate' };
+  function bankCard(a, opts) {
+    const br = findBy('branches', a.branchId), bal = balanceOf(a), cur = curOf(a);
+    const owners = db.ownerships.filter(o => String(o.accountNo) === String(a.accountNo)).map(o => findBy('customers', o.customerId)).filter(Boolean);
+    return `<a class="bank-card bc-${CARD_THEME[a.type] || 'blue'}${opts && opts.big ? ' big' : ''}" href="${href('accounts', a)}">
+      <div class="bc-top"><span class="bc-type">${esc(a.type)}</span>${a.status !== 'פעיל' ? `<span class="bc-status">${esc(a.status)}</span>` : ''}<span class="bc-chip"></span></div>
+      <div class="bc-label">יתרה</div><div class="bc-bal ${bal < 0 ? 'neg' : ''}">${money(bal, cur)}</div>
+      <div class="bc-no" dir="ltr">•••• ${esc(String(a.accountNo).slice(-4))}</div>
+      <div class="bc-foot"><span>${esc(owners.map(o => o.fullName).join(', ') || 'ללא בעלים')}</span><span>${esc(br ? br.name : '')} · ${cur}</span></div></a>`;
+  }
+  const miniStat = (label, value, color, icon) => `<div class="mini-stat" style="--c:${color}"><span class="tile">${ICON(icon, 18)}</span><div><div class="ms-v">${value}</div><div class="ms-l">${label}</div></div></div>`;
+
   /* ---------- Dashboard ---------- */
   function viewHome() {
     shell('home', [['לוח בקרה', '#/']]);
@@ -150,14 +239,21 @@
     const recent = db.transactions.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.txnId - a.txnId).slice(0, 6);
     const tx = ent('transactions');
     const C = ent('customers'), A = ent('accounts'), Lo = ent('loans');
+    const series = balanceSeries(db.accounts, true);
 
     $('#view').innerHTML = `
-      <div class="page-head"><div>
-        <h1>לוח בקרה</h1>
-        <p>תמונת מצב של הלקוחות, החשבונות וההלוואות בבנק.</p></div>
-        <div class="actions">
-          <button class="btn primary" type="button" id="qAdd">${ICON('plus', 17)} לקוח חדש</button></div>
-      </div>
+      <section class="welcome">
+        <div class="wl-text"><div class="wl-greet">${greeting()}</div>
+          <h1>לוח בקרה</h1>
+          <p>תמונת מצב של הלקוחות, החשבונות וההלוואות בבנק.</p></div>
+        <div class="qa">
+          <button class="qa-btn" type="button" id="qAdd"><span class="tile" style="--c:${C.color}">${ICON('customers', 20)}</span>לקוח חדש</button>
+          <button class="qa-btn" type="button" id="qAcc"><span class="tile" style="--c:${A.color}">${ICON('accounts', 20)}</span>פתיחת חשבון</button>
+          <button class="qa-btn" type="button" id="qTx"><span class="tile" style="--c:${tx.color}">${ICON('plus', 20)}</span>תנועה חדשה</button>
+          <button class="qa-btn" type="button" id="qXfer"><span class="tile" style="--c:#6366f1">${ICON('transactions', 20)}</span>העברה בין חשבונות</button>
+        </div>
+        <svg class="wl-art" viewBox="0 0 200 200" aria-hidden="true"><circle cx="160" cy="40" r="90" /><circle cx="40" cy="190" r="70" /></svg>
+      </section>
 
       <div class="kpis">
         <div class="kpi hero"><div class="top"><span class="lbl">סך יתרות בחשבונות</span><span class="tile">${ICON('accounts', 20)}</span></div>
@@ -173,8 +269,12 @@
           <div class="foot">${db.ownerships.length} קשרי בעלות</div></a>
       </div>
 
-      <div class="grid c3">
+      <div class="grid c21">
+        <div class="card"><div class="card-head"><h2>סך היתרות לאורך זמן</h2><span class="sub">${series.skipped ? 'ללא תנועות במט"ח (אין שער)' : 'בשקלים, כולל מט"ח לפי שער יציג'}</span></div>
+          ${chartBox(series.pts, 'ILS', '#2563eb', 230)}</div>
         ${fxCard(fxBal)}
+      </div>
+      <div class="grid c2">
         <div class="card"><div class="card-head"><h2>יתרות לפי סוג חשבון</h2><a class="more" href="#/e/accounts">לכל החשבונות</a></div>
           ${bars(accTypes, '#14b8a6', 'חשבונות')}</div>
         <div class="card"><div class="card-head"><h2>הלוואות לפי מטרה</h2><a class="more" href="#/e/loans">לכל ההלוואות</a></div>
@@ -202,6 +302,10 @@
       <div class="foot-note">הנתונים נשמרים בדפדפן בלבד (localStorage) · כל הנתונים פיקטיביים
         <button class="btn sm ghost" id="resetBtn" type="button">איפוס לנתוני הדגמה</button></div>`;
     $('#qAdd').addEventListener('click', () => openForm('customers'));
+    $('#qAcc').addEventListener('click', () => openForm('accounts'));
+    $('#qTx').addEventListener('click', () => openForm('transactions'));
+    $('#qXfer').addEventListener('click', () => { location.hash = '#/transfer'; });
+    drawCharts();
     $('#resetBtn').addEventListener('click', () => {
       if (!confirm('לאפס את כל הנתונים לנתוני ההדגמה?')) return;
       db = JSON.parse(JSON.stringify(window.SEED)); save(); toast('הנתונים אופסו'); route();
@@ -288,6 +392,7 @@
           <button class="btn danger" id="dlBtn" type="button">${ICON('trash', 16)} מחיקה</button>
         </div>
       </div>
+      ${visualFor(key, r)}
       <div class="card"><div class="card-head"><h2>פרטים</h2></div>
         <div class="attr-grid">
           ${e.fields.map(f => `<div class="attr"><div class="k">${esc(f.label)}</div><div class="v">${fmt(f, r) || '<span class="muted">—</span>'}</div></div>`).join('')}
@@ -296,6 +401,41 @@
       ${relSections}`;
     $('#edBtn').addEventListener('click', () => openForm(key, r));
     $('#dlBtn').addEventListener('click', () => { if (remove(key, id)) location.hash = `#/e/${key}`; });
+    drawCharts();
+  }
+
+  /** אזור חזותי בראש עמוד רשומה */
+  function visualFor(key, r) {
+    const toIls = a => FXN.toILS(balanceOf(a), curOf(a));
+    if (key === 'customers') {
+      const accs = db.ownerships.filter(o => String(o.customerId) === String(r.customerId)).map(o => findBy('accounts', o.accountNo)).filter(Boolean);
+      const loans = db.loans.filter(l => String(l.customerId) === String(r.customerId));
+      const tot = accs.reduce((s, a) => s + (toIls(a) || 0), 0);
+      return `<div class="mini-stats">
+          ${miniStat('סך יתרות', money(tot), '#2563eb', 'accounts')}
+          ${miniStat('חשבונות', accs.length, ent('accounts').color, 'accounts')}
+          ${miniStat('הלוואות', loans.length ? money(loans.reduce((s, l) => s + Number(l.amount || 0), 0)) : 'אין', ent('loans').color, 'loans')}
+        </div>
+        ${accs.length ? `<div class="card"><div class="card-head"><h2>החשבונות של ${esc(r.fullName)}</h2></div><div class="cards-row">${accs.map(a => bankCard(a)).join('')}</div></div>` : ''}`;
+    }
+    if (key === 'accounts') {
+      const s = balanceSeries([r], false);
+      return `<div class="grid c12">
+          <div class="bc-wrap">${bankCard(r, { big: true })}</div>
+          <div class="card"><div class="card-head"><h2>יתרה לאורך זמן</h2><span class="sub">${curOf(r)}</span></div>${chartBox(s.pts, curOf(r), '#14b8a6', 190)}</div>
+        </div>`;
+    }
+    if (key === 'branches') {
+      const custs = db.customers.filter(c => String(c.branchId) === String(r.branchId));
+      const accs = db.accounts.filter(a => String(a.branchId) === String(r.branchId));
+      const tot = accs.reduce((s, a) => s + (toIls(a) || 0), 0);
+      return `<div class="mini-stats">
+          ${miniStat('לקוחות', custs.length, ent('customers').color, 'customers')}
+          ${miniStat('חשבונות', accs.length, ent('accounts').color, 'accounts')}
+          ${miniStat('סך יתרות בסניף', money(tot), '#2563eb', 'branches')}
+        </div>`;
+    }
+    return '';
   }
 
   /* ---------- Delete (שלמות התייחסות) ---------- */
