@@ -385,3 +385,8 @@ table.data th.sortable:focus-visible{outline:2px solid #93b4f5;outline-offset:-2
 .xfer-flow small{color:var(--muted);font-size:12.5px}
 .xfer-flow .arrow{font-size:20px;color:var(--faint)}
 .xfer-preview .psub{margin-top:6px}
+/* העברה: "לחשבון" ממוקם בדיוק מתחת ל"מחשבון" (באותה עמודה); dense ממלא את המקום הפנוי בעמודה השנייה */
+@media (min-width:901px){
+  .dlg-body{grid-auto-flow:row dense}
+  .dlg-body [data-field="toAccountNo"]{grid-column:2}
+}
