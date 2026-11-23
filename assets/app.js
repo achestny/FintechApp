@@ -438,6 +438,9 @@
     return '';
   }
 
+  /* השתתפות חובה (1,N): בכל סניף לפחות חשבון אחד */
+  const lastAccountInBranch = acc => db.accounts.filter(x => String(x.branchId) === String(acc.branchId)).length === 1;
+
   /* ---------- Delete (שלמות התייחסות) ---------- */
   function remove(key, id) {
     const e = ent(key);
@@ -455,6 +458,10 @@
       save(); toast('ההעברה נמחקה');
       if (!location.hash.includes(`/e/${key}/`)) route();
       return true;
+    }
+    if (key === 'accounts' && lastAccountInBranch(r)) {
+      toast('לא ניתן למחוק – זה החשבון היחיד בסניף, ובכל סניף חייב להיות לפחות חשבון אחד', true);
+      return false;
     }
     if (!confirm(`למחוק את "${titleOf(key, r)}"?`)) return false;
     db[key] = db[key].filter(x => pkOf(e, x) !== String(id));
@@ -518,6 +525,8 @@
     }
     if (key === 'ownerships' && acc && data.since && acc.openDate && data.since < acc.openDate)
       err('since', `התאריך מוקדם מפתיחת החשבון (${fdate(acc.openDate)})`);
+    if (key === 'accounts' && rec && String(rec.branchId) !== String(data.branchId) && lastAccountInBranch(rec))
+      err('branchId', 'זה החשבון היחיד בסניף – בכל סניף חייב להיות לפחות חשבון אחד');
     if (key === 'accounts' && rec && rec.currency !== data.currency &&
         db.transactions.some(t => String(t.accountNo) === String(rec.accountNo)))
       err('currency', 'לא ניתן לשנות מטבע לחשבון שיש בו תנועות');
